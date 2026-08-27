@@ -1,0 +1,28 @@
+---
+paths:
+  - 'app/Http/Controllers/Teams/**'
+---
+
+# Teams
+
+## Organization logo uploads: no SVG, and absent fields never clear stored branding
+Logos live on the `public` disk under `team-logos/` and are served from the app's own origin, so SVG is deliberately rejected in SaveTeamRequest — an SVG can carry script and would be same-origin. PNG/JPG/WebP only, 2 MB and 2000x2000 max. `php artisan storage:link` must exist in any new environment or logos 404.
+
+TeamController::resolveLogo() returns an empty array when the request says nothing about the logo, so a save that only changes the name never wipes it. `remove_logo=true` clears it; a new upload is stored first and the old file deleted only after, so a failed write cannot lose both. The same "only apply what was sent" rule covers welcome_message / website_url / timezone via $request->has().
+
+The form posts multipart with `_method: 'patch'` because Laravel cannot read multipart bodies on a real PATCH.
+
+Team::logoUrl() is the only place that builds the public URL — do not construct the path in a controller or component. It is null-safe and returns null when nothing is uploaded.
+
+## Super admins create users directly; everyone else invites
+POST settings/teams/{team}/members (teams.members.store) creates a user account outright inside an organization. It is gated by TeamPolicy::createMember, which asks isSuperAdmin() EXPLICITLY — a permission lookup would deny super admins, since teamRole() is null for them (see .ai/rules/concerns.md).
+
+Deliberately narrower than inviteMember: creating an account skips the invitee's consent and the email round-trip. Org owners and admins keep the invitation flow; only super admins create.
+
+App\Actions\Teams\CreateTeamUser does the work and differs from CreateNewUser in two ways worth knowing:
+- It does NOT create a personal organization. The user is being placed into an existing one, and a second personal org would only clutter their switcher. There is a test pinning this.
+- No password is ever chosen for the user. The account is created with Str::password(32) and Password::sendResetLink() emails them to set their own, so a usable password never passes through the creator's hands or the logs. Do not add an "initial password" field.
+
+It still calls CreateDefaultAvailability and ApplyDefaultHolidays, so a created user lands with working hours rather than an empty calendar — same as a self-registered one.
+
+The UI is CreateMemberModal.vue on the team edit page, shown on the shared isSuperAdmin Inertia prop (HandleInertiaRequests), not on the TeamPermissions DTO.

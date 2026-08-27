@@ -1,0 +1,239 @@
+@import 'tailwindcss';
+
+@import 'tw-animate-css';
+@import 'shadcn-vue/tailwind.css';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+    --font-sans:
+        'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif,
+        'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+        'Noto Color Emoji';
+
+    --radius-lg: var(--radius);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-sm: calc(var(--radius) - 4px);
+
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+
+    --color-brand: var(--brand);
+    --color-brand-foreground: var(--brand-foreground);
+
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+
+    --color-success: var(--success);
+    --color-success-foreground: var(--success-foreground);
+    --color-success-muted: var(--success-muted);
+    --color-success-muted-foreground: var(--success-muted-foreground);
+
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+
+    --color-sidebar: var(--sidebar-background);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-ring: var(--sidebar-ring);
+    --font-heading: var(--font-sans);
+    --radius-xl: calc(var(--radius) + 4px);
+
+    /*
+      Minimalism & Swiss Style calls for flat surfaces separated by hairlines,
+      not stacked drop shadows. These three tiers are the only elevations in the
+      product: resting cards, hovered/interactive cards, and floating overlays.
+    */
+    --shadow-flat: 0 1px 2px 0 --alpha(var(--foreground) / 4%);
+    --shadow-raised:
+        0 1px 3px 0 --alpha(var(--foreground) / 6%),
+        0 4px 12px -2px --alpha(var(--foreground) / 6%);
+    --shadow-overlay:
+        0 8px 24px -4px --alpha(var(--foreground) / 12%),
+        0 2px 6px -2px --alpha(var(--foreground) / 8%);
+}
+
+/*
+  The default border color has changed to `currentColor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+    *,
+    ::after,
+    ::before,
+    ::backdrop,
+    ::file-selector-button {
+        border-color: var(--border, currentColor);
+    }
+    * {
+        @apply border-border outline-ring/50;
+    }
+    body {
+        @apply bg-background text-foreground;
+        @apply font-sans;
+        font-feature-settings: 'cv11';
+    }
+
+    /*
+      Tabular figures everywhere a time, date, price or count is rendered, so
+      changing values never reflow the row they sit in.
+    */
+    time,
+    [data-numeric] {
+        font-variant-numeric: tabular-nums;
+    }
+
+    /*
+      Long user content (event titles, invitee notes, meeting URLs) must reflow
+      rather than force a horizontal scrollbar. `anywhere` keeps normal prose
+      wrapping at word boundaries and only breaks a token that cannot fit.
+    */
+    [data-wrap-anywhere] {
+        overflow-wrap: anywhere;
+    }
+}
+
+/*
+  Motion is set to the Subtle tier: short fades with an 8-16px offset, never a
+  slide. Everything non-essential collapses to its final state when the user
+  asks for reduced motion.
+*/
+@media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/*
+  Calendly-style palette: one vibrant blue carries every action, sitting on a
+  bluish white ground. Light mode keeps cards pure white so the tinted page
+  background reads as a recessed surface behind them.
+*/
+:root {
+    --background: oklch(0.979 0.007 255);
+    --foreground: oklch(0.262 0.045 258);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.262 0.045 258);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.262 0.045 258);
+    --primary: oklch(0.573 0.235 260.1);
+    --primary-foreground: oklch(1 0 0);
+
+    /*
+      The one surface that must stay brand blue in BOTH themes: the auth split
+      panel. It is deliberately not overridden in .dark, because a marketing
+      panel that inverts with the theme stops reading as the brand.
+    */
+    --brand: oklch(0.573 0.235 260.1);
+    --brand-foreground: oklch(1 0 0);
+
+    --secondary: oklch(0.962 0.014 255);
+    --secondary-foreground: oklch(0.262 0.045 258);
+    --muted: oklch(0.962 0.014 255);
+    --muted-foreground: oklch(0.47 0.043 257);
+    --accent: oklch(0.94 0.031 254);
+    --accent-foreground: oklch(0.47 0.212 260.5);
+    --destructive: oklch(0.577 0.215 27.3);
+    --destructive-foreground: oklch(1 0 0);
+    --success: oklch(0.531 0.125 130.8);
+    --success-foreground: oklch(1 0 0);
+    --success-muted: oklch(0.967 0.023 122.7);
+    --success-muted-foreground: oklch(0.437 0.097 130.4);
+    --border: oklch(0.918 0.019 256);
+    --input: oklch(0.886 0.026 256);
+    --ring: oklch(0.573 0.235 260.1);
+    --chart-1: oklch(0.573 0.235 260.1);
+    --chart-2: oklch(0.702 0.148 244);
+    --chart-3: oklch(0.623 0.135 128.6);
+    --chart-4: oklch(0.666 0.157 58.3);
+    --chart-5: oklch(0.541 0.247 293);
+    --radius: 0.625rem;
+    --sidebar-background: oklch(1 0 0);
+    --sidebar-foreground: oklch(0.262 0.045 258);
+    --sidebar-primary: oklch(0.573 0.235 260.1);
+    --sidebar-primary-foreground: oklch(1 0 0);
+    --sidebar-accent: oklch(0.94 0.031 254);
+    --sidebar-accent-foreground: oklch(0.47 0.212 260.5);
+    --sidebar-border: oklch(0.918 0.019 256);
+    --sidebar-ring: oklch(0.573 0.235 260.1);
+}
+
+.dark {
+    --background: oklch(0.196 0.03 258);
+    --foreground: oklch(0.945 0.012 255);
+    --card: oklch(0.248 0.036 257);
+    --card-foreground: oklch(0.945 0.012 255);
+    --popover: oklch(0.248 0.036 257);
+    --popover-foreground: oklch(0.945 0.012 255);
+    --primary: oklch(0.688 0.163 255);
+    --primary-foreground: oklch(0.196 0.03 258);
+    --secondary: oklch(0.296 0.042 257);
+    --secondary-foreground: oklch(0.945 0.012 255);
+    --muted: oklch(0.296 0.042 257);
+    --muted-foreground: oklch(0.73 0.035 256);
+    --accent: oklch(0.322 0.055 257);
+    --accent-foreground: oklch(0.832 0.086 252);
+    --destructive: oklch(0.577 0.215 27.3);
+    --destructive-foreground: oklch(1 0 0);
+    --success: oklch(0.804 0.151 127.9);
+    --success-foreground: oklch(0.24 0.048 133.1);
+    --success-muted: oklch(0.265 0.046 133.5);
+    --success-muted-foreground: oklch(0.874 0.109 126.5);
+    --border: oklch(1 0 0 / 12%);
+    --input: oklch(1 0 0 / 16%);
+    --ring: oklch(0.688 0.163 255);
+    --chart-1: oklch(0.688 0.163 255);
+    --chart-2: oklch(0.596 0.16 258);
+    --chart-3: oklch(0.804 0.151 127.9);
+    --chart-4: oklch(0.837 0.164 84.4);
+    --chart-5: oklch(0.709 0.159 293.5);
+    --sidebar-background: oklch(0.22 0.033 258);
+    --sidebar-foreground: oklch(0.945 0.012 255);
+    --sidebar-primary: oklch(0.688 0.163 255);
+    --sidebar-primary-foreground: oklch(0.196 0.03 258);
+    --sidebar-accent: oklch(0.322 0.055 257);
+    --sidebar-accent-foreground: oklch(0.832 0.086 252);
+    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-ring: oklch(0.688 0.163 255);
+}

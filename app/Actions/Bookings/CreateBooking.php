@@ -1,0 +1,137 @@
+<?php
+
+namespace App\Actions\Bookings;
+
+use App\Enums\BookingStatus;
+use App\Exceptions\SlotUnavailableException;
+use App\Jobs\SyncBookingToCalendars;
+use App\Models\Booking;
+use App\Models\EventType;
+use App\Models\EventTypeQuestion;
+use App\Services\Activity\ActivityLogger;
+use App\Services\Scheduling\AvailabilityEngine;
+use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
+
+class CreateBooking
+{
+    public function __construct(
+        protected AvailabilityEngine $availability,
+        protected AssignHosts $assignHosts,
+        protected ScheduleReminders $scheduleReminders,
+        protected NotifyBookingParties $notify,
+        protected ActivityLogger $activity,
+    ) {
+        //
+    }
+
+    /**
+     * Book a slot on an event type.
+     *
+     * @param  array{name: string, email: string, notes?: string|null, timezone?: string|null, location_detail?: string|null, guests?: array<int, string>, answers?: array<int|string, mixed>}  $attributes
+     *
+     * @throws SlotUnavailableException
+     */
+    public function handle(EventType $eventType, CarbonImmutable $startsAt, array $attributes, ?Booking $replacing = null): Booking
+    {
+        $booking = DB::transaction(function () use ($eventType, $startsAt, $attributes, $replacing) {
+            $slot = $this->availability->findSlot($eventType, $startsAt, $replacing?->id);
+
+            if ($slot === null) {
+                throw SlotUnavailableException::taken();
+            }
+
+            $hosts = $this->assignHosts->handle($eventType, $slot->hostIds);
+
+            $booking = Booking::create([
+                'event_type_id' => $eventType->id,
+                'team_id' => $eventType->team_id,
+                'user_id' => $hosts->first()->id,
+                'status' => BookingStatus::Confirmed,
+                'starts_at' => $slot->startsAt,
+                'ends_at' => $slot->endsAt,
+                'invitee_timezone' => $attributes['timezone'] ?? config('scheduling.default_timezone'),
+                'name' => $attributes['name'],
+                'email' => $attributes['email'],
+                'notes' => $attributes['notes'] ?? null,
+                'location_type' => $eventType->location_type,
+                'location_detail' => $attributes['location_detail'] ?? $eventType->location_detail,
+                'rescheduled_from_id' => $replacing?->id,
+            ]);
+
+            $booking->hosts()->sync($hosts->pluck('id'));
+
+            $this->storeGuests($booking, $attributes['guests'] ?? []);
+            $this->storeAnswers($booking, $eventType, $attributes['answers'] ?? []);
+
+            $this->scheduleReminders->handle($booking);
+
+            return $booking;
+        });
+
+        $booking->load(['eventType', 'host', 'hosts', 'guests', 'answers']);
+
+        SyncBookingToCalendars::dispatch($booking);
+
+        /*
+         * A reschedule builds its replacement through this action, but the move
+         * is announced and logged once by RescheduleBooking. Confirming here as
+         * well would mail everyone a second, contradictory "booking confirmed"
+         * and record a booking.created the invitee never performed.
+         */
+        if ($replacing === null) {
+            $this->notify->confirmed($booking);
+
+            $this->activity->record(
+                $booking->team,
+                'booking.created',
+                $booking->name.' booked '.($booking->eventType?->name ?? 'a meeting'),
+                $booking,
+                ['startsAt' => $booking->starts_at->toIso8601String(), 'email' => $booking->email],
+            );
+        }
+
+        return $booking;
+    }
+
+    /**
+     * Store the additional guests invited alongside the invitee.
+     *
+     * @param  array<int, string>  $guests
+     */
+    protected function storeGuests(Booking $booking, array $guests): void
+    {
+        foreach (array_unique(array_filter($guests)) as $email) {
+            $booking->guests()->firstOrCreate(['email' => $email]);
+        }
+    }
+
+    /**
+     * Store the answers given to the event type's custom questions.
+     *
+     * @param  array<int|string, mixed>  $answers
+     */
+    protected function storeAnswers(Booking $booking, EventType $eventType, array $answers): void
+    {
+        if ($answers === []) {
+            return;
+        }
+
+        $questions = $eventType->questions()->get()->keyBy('id');
+
+        foreach ($answers as $questionId => $answer) {
+            /** @var EventTypeQuestion|null $question */
+            $question = $questions->get((int) $questionId);
+
+            if ($question === null || blank($answer)) {
+                continue;
+            }
+
+            $booking->answers()->create([
+                'event_type_question_id' => $question->id,
+                'label' => $question->label,
+                'answer' => is_array($answer) ? implode(', ', $answer) : (string) $answer,
+            ]);
+        }
+    }
+}

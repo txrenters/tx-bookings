@@ -1,0 +1,299 @@
+<script setup lang="ts">
+import { Head, router, setLayoutProps, useForm } from '@inertiajs/vue3';
+import { Pencil, Plus, Trash2, Users } from '@lucide/vue';
+import { ref } from 'vue';
+import Heading from '@/components/Heading.vue';
+import InputError from '@/components/InputError.vue';
+import HostPriorityList from '@/components/scheduling/HostPriorityList.vue';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetFooter,
+    SheetHeader,
+    SheetTitle,
+} from '@/components/ui/sheet';
+import { useCurrentTeam } from '@/composables/useCurrentTeam';
+import { destroy, index, store, update } from '@/routes/groups';
+
+type Member = { id: number; name: string; email: string };
+
+type Group = {
+    id: number;
+    slug: string;
+    name: string;
+    description: string | null;
+    eventTypeCount: number;
+    members: Member[];
+    memberIds: number[];
+};
+
+type Props = {
+    groups: Group[];
+    teamMembers: Member[];
+    canManage: boolean;
+};
+
+defineProps<Props>();
+
+const { teamSlug } = useCurrentTeam();
+
+const editing = ref<Group | null>(null);
+const panelOpen = ref(false);
+const deleting = ref<Group | null>(null);
+
+const form = useForm({
+    name: '',
+    description: '',
+    member_ids: [] as number[],
+});
+
+const openCreate = () => {
+    editing.value = null;
+    form.reset();
+    form.clearErrors();
+    panelOpen.value = true;
+};
+
+const openEdit = (group: Group) => {
+    editing.value = group;
+    form.clearErrors();
+    form.name = group.name;
+    form.description = group.description ?? '';
+    form.member_ids = [...group.memberIds];
+    panelOpen.value = true;
+};
+
+const submit = () => {
+    const onSuccess = () => (panelOpen.value = false);
+
+    if (editing.value) {
+        form.patch(
+            update({ current_team: teamSlug.value, group: editing.value.slug })
+                .url,
+            { preserveScroll: true, onSuccess },
+        );
+
+        return;
+    }
+
+    form.post(store(teamSlug.value).url, { preserveScroll: true, onSuccess });
+};
+
+const confirmDelete = () => {
+    if (!deleting.value) {
+        return;
+    }
+
+    router.delete(
+        destroy({ current_team: teamSlug.value, group: deleting.value.slug })
+            .url,
+        { preserveScroll: true, onFinish: () => (deleting.value = null) },
+    );
+};
+
+setLayoutProps({
+    breadcrumbs: [{ title: 'Teams', href: index(teamSlug.value) }],
+});
+</script>
+
+<template>
+    <Head title="Teams" />
+
+    <div class="flex h-full flex-1 flex-col gap-6 rounded-xl p-4">
+        <div class="flex items-center justify-between">
+            <Heading
+                variant="small"
+                title="Teams"
+                description="Groups of people inside this organization — Leasing, Maintenance — that event types can host from"
+            />
+
+            <Button v-if="canManage" data-test="new-group" @click="openCreate">
+                <Plus /> New team
+            </Button>
+        </div>
+
+        <div v-if="groups.length" class="grid gap-3 md:grid-cols-2">
+            <div
+                v-for="group in groups"
+                :key="group.id"
+                data-test="group-card"
+                class="flex flex-col rounded-lg border p-5"
+            >
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <p class="font-medium">{{ group.name }}</p>
+                        <p
+                            v-if="group.description"
+                            class="mt-0.5 text-sm text-muted-foreground"
+                        >
+                            {{ group.description }}
+                        </p>
+                    </div>
+                    <Badge variant="secondary">
+                        {{ group.eventTypeCount }} event
+                        {{ group.eventTypeCount === 1 ? 'type' : 'types' }}
+                    </Badge>
+                </div>
+
+                <ul class="mt-4 flex flex-wrap gap-1.5">
+                    <li
+                        v-for="member in group.members"
+                        :key="member.id"
+                        class="rounded-md bg-muted px-2 py-1 text-xs"
+                    >
+                        {{ member.name }}
+                    </li>
+                </ul>
+
+                <div
+                    v-if="canManage"
+                    class="mt-4 flex items-center gap-2 border-t pt-4"
+                >
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        :data-test="`edit-group-${group.id}`"
+                        @click="openEdit(group)"
+                    >
+                        <Pencil class="size-3.5" /> Edit
+                    </Button>
+                    <div class="flex-1" />
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        :aria-label="`Delete ${group.name}`"
+                        @click="deleting = group"
+                    >
+                        <Trash2 class="size-4" />
+                    </Button>
+                </div>
+            </div>
+        </div>
+
+        <div
+            v-else
+            class="rounded-lg border border-dashed p-12 text-center text-muted-foreground"
+        >
+            <Users class="mx-auto mb-3 size-8 opacity-50" />
+            <p>No teams yet.</p>
+            <p class="mt-1 text-sm">
+                Build a team once — Leasing, Maintenance — then point an
+                event type at it and everyone in it hosts, in priority order.
+            </p>
+            <Button v-if="canManage" class="mt-4" @click="openCreate">
+                Create a team
+            </Button>
+        </div>
+    </div>
+
+    <Sheet v-model:open="panelOpen">
+        <SheetContent
+            side="right"
+            class="w-full gap-0 overflow-y-auto sm:max-w-md"
+        >
+            <SheetHeader>
+                <SheetTitle>
+                    {{ editing ? editing.name : 'New team' }}
+                </SheetTitle>
+                <SheetDescription>
+                    Members are offered in the order they are listed here.
+                </SheetDescription>
+            </SheetHeader>
+
+            <form
+                class="flex flex-col gap-6 px-4 pb-4"
+                @submit.prevent="submit"
+            >
+                <div class="grid gap-2">
+                    <Label for="group-name">Name</Label>
+                    <Input
+                        id="group-name"
+                        v-model="form.name"
+                        placeholder="Leasing"
+                        data-test="group-name"
+                        required
+                    />
+                    <InputError :message="form.errors.name" />
+                </div>
+
+                <div class="grid gap-2">
+                    <Label for="group-description">Description</Label>
+                    <Input
+                        id="group-description"
+                        v-model="form.description"
+                        placeholder="Who is in this team?"
+                    />
+                    <InputError :message="form.errors.description" />
+                </div>
+
+                <div class="grid gap-2">
+                    <Label>Members</Label>
+                    <p class="text-xs text-muted-foreground">
+                        Every member here hosts the event types pointed at this
+                        team. Bookings go to the highest one who is free.
+                    </p>
+                    <HostPriorityList
+                        :members="teamMembers"
+                        :model-value="form.member_ids"
+                        @update:model-value="(ids) => (form.member_ids = ids)"
+                    />
+                    <InputError :message="form.errors.member_ids" />
+                </div>
+
+                <SheetFooter class="flex-row justify-end gap-2 px-0">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        @click="panelOpen = false"
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        type="submit"
+                        :disabled="form.processing"
+                        data-test="save-group"
+                    >
+                        {{ editing ? 'Save group' : 'Create group' }}
+                    </Button>
+                </SheetFooter>
+            </form>
+        </SheetContent>
+    </Sheet>
+
+    <Dialog :open="deleting !== null" @update:open="deleting = null">
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Delete {{ deleting?.name }}?</DialogTitle>
+                <DialogDescription>
+                    Event types hosting from this team fall back to their own
+                    hosts. Bookings already made are untouched.
+                </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+                <Button variant="outline" @click="deleting = null">
+                    Keep it
+                </Button>
+                <Button
+                    variant="destructive"
+                    data-test="confirm-delete-group"
+                    @click="confirmDelete"
+                >
+                    Delete
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+</template>

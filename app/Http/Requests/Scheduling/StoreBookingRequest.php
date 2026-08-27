@@ -1,0 +1,96 @@
+<?php
+
+namespace App\Http\Requests\Scheduling;
+
+use App\Models\EventType;
+use App\Services\Scheduling\BookingPageResolver;
+use Illuminate\Contracts\Validation\ValidationRule;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+
+class StoreBookingRequest extends FormRequest
+{
+    /**
+     * The event type resolved from the route, cached for the request.
+     */
+    protected ?EventType $resolvedEventType = null;
+
+    /**
+     * Get the validation rules that apply to the request.
+     *
+     * @return array<string, ValidationRule|array<mixed>|string>
+     */
+    public function rules(): array
+    {
+        return [
+            'starts_at' => ['required', 'date'],
+            'timezone' => ['required', 'string', Rule::in(timezone_identifiers_list())],
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255'],
+            'notes' => ['nullable', 'string', 'max:2000'],
+            'location_detail' => ['nullable', 'string', 'max:500'],
+            'guests' => ['array', 'max:10'],
+            'guests.*' => ['email', 'max:255'],
+            'answers' => ['array'],
+        ];
+    }
+
+    /**
+     * Resolve the event type being booked from the public page slugs.
+     */
+    public function eventType(): EventType
+    {
+        if ($this->resolvedEventType !== null) {
+            return $this->resolvedEventType;
+        }
+
+        $resolver = app(BookingPageResolver::class);
+        $page = $resolver->resolve((string) $this->route('page'));
+
+        abort_if($page === null, 404);
+
+        $eventType = $resolver->eventType($page, (string) $this->route('eventType'));
+
+        abort_if($eventType === null, 404);
+
+        return $this->resolvedEventType = $eventType;
+    }
+
+    /**
+     * Get the custom validation rules that run after the basic rules pass.
+     *
+     * @return array<int, callable>
+     */
+    public function after(): array
+    {
+        return [
+            function ($validator) {
+                $eventType = $this->eventType();
+
+                if ($eventType->location_type->requiresInviteeInput() && blank($this->input('location_detail'))) {
+                    $validator->errors()->add('location_detail', 'Add the number we should call you on.');
+                }
+
+                $answers = $this->input('answers', []);
+
+                foreach ($eventType->questions as $question) {
+                    if ($question->is_required && blank($answers[$question->id] ?? null)) {
+                        $validator->errors()->add("answers.{$question->id}", 'This field is required.');
+                    }
+                }
+            },
+        ];
+    }
+
+    /**
+     * Get the custom attribute names for validator errors.
+     *
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'location_detail' => 'phone number',
+        ];
+    }
+}

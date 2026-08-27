@@ -1,0 +1,396 @@
+<?php
+
+use App\Enums\BookingStatus;
+use App\Enums\TeamRole;
+use App\Models\Booking;
+use App\Models\BookingReminder;
+use App\Models\EventType;
+use App\Models\Team;
+use App\Models\User;
+use App\Notifications\Bookings\BookingCanceled;
+use App\Notifications\Bookings\BookingReminder as BookingReminderNotification;
+use App\Services\Ics\IcsGenerator;
+use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Notification;
+
+beforeEach(function () {
+    $this->travelTo(CarbonImmutable::parse('2026-09-01 08:00:00', 'UTC'));
+
+    $this->host = User::factory()->create(['name' => 'Dana Reed', 'timezone' => 'America/Chicago']);
+    $this->team = $this->host->currentTeam;
+    $this->eventType = EventType::factory()->ownedBy($this->host)->create(['name' => 'Intro call']);
+});
+
+function bookingFor(User $host, EventType $eventType, array $overrides = []): Booking
+{
+    $booking = Booking::factory()->create(array_merge([
+        'event_type_id' => $eventType->id,
+        'user_id' => $host->id,
+        'team_id' => $eventType->team_id,
+        'starts_at' => CarbonImmutable::parse('2026-09-03 15:00:00', 'UTC'),
+        'ends_at' => CarbonImmutable::parse('2026-09-03 15:30:00', 'UTC'),
+    ], $overrides));
+
+    $booking->hosts()->attach($host);
+
+    return $booking;
+}
+
+test('the bookings page lists upcoming bookings in the viewers timezone', function () {
+    bookingFor($this->host, $this->eventType, ['name' => 'Sam Rivera']);
+
+    $this->actingAs($this->host)
+        ->get(route('meetings.index', ['current_team' => $this->team->slug]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('scheduling/meetings/Index')
+            ->where('viewerTimezone', 'America/Chicago')
+            ->has('meetings', 1)
+            ->where('total', 1)
+            ->where('meetings.0.inviteeName', 'Sam Rivera')
+            ->where('meetings.0.timeLabel', '10:00 am - 10:30 am')
+            ->where('meetings.0.eventTypeName', 'Intro call'));
+});
+
+test('past bookings are only listed under the past filter', function () {
+    bookingFor($this->host, $this->eventType, [
+        'starts_at' => CarbonImmutable::parse('2026-08-20 10:00:00', 'UTC'),
+        'ends_at' => CarbonImmutable::parse('2026-08-20 10:30:00', 'UTC'),
+    ]);
+
+    $this->actingAs($this->host)
+        ->get(route('meetings.index', ['current_team' => $this->team->slug]))
+        ->assertInertia(fn ($page) => $page->has('meetings', 0));
+
+    $this->actingAs($this->host)
+        ->get(route('meetings.index', ['current_team' => $this->team->slug, 'filter' => 'past']))
+        ->assertInertia(fn ($page) => $page->has('meetings', 1));
+});
+
+test('a member only sees bookings they host', function () {
+    $team = Team::factory()->create();
+    $member = User::factory()->create();
+
+    $team->members()->attach($this->host, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($member, ['role' => TeamRole::Member->value]);
+    $member->switchTeam($team);
+
+    $eventType = EventType::factory()->create(['team_id' => $team->id, 'user_id' => $this->host->id]);
+    bookingFor($this->host, $eventType);
+
+    $this->actingAs($member)
+        ->get(route('meetings.index', ['current_team' => $team->slug]))
+        ->assertInertia(fn ($page) => $page->has('meetings', 0));
+});
+
+test('a team admin sees every booking in the team', function () {
+    $team = Team::factory()->create();
+    $admin = User::factory()->create();
+
+    $team->members()->attach($this->host, ['role' => TeamRole::Member->value]);
+    $team->members()->attach($admin, ['role' => TeamRole::Admin->value]);
+    $admin->switchTeam($team);
+
+    $eventType = EventType::factory()->create(['team_id' => $team->id, 'user_id' => $this->host->id]);
+    bookingFor($this->host, $eventType);
+
+    $this->actingAs($admin)
+        ->get(route('meetings.index', ['current_team' => $team->slug]))
+        ->assertInertia(fn ($page) => $page->has('meetings', 1));
+});
+
+test('a host can cancel a booking', function () {
+    Notification::fake();
+
+    $booking = bookingFor($this->host, $this->eventType);
+
+    $this->actingAs($this->host)
+        ->delete(route('meetings.destroy', [
+            'current_team' => $this->team->slug,
+            'booking' => $booking->uid,
+        ]), ['reason' => 'Out sick']);
+
+    $booking->refresh();
+
+    expect($booking->status)->toBe(BookingStatus::Canceled)
+        ->and($booking->canceled_by)->toBe('host')
+        ->and($booking->cancellation_reason)->toBe('Out sick');
+
+    Notification::assertSentOnDemand(BookingCanceled::class);
+});
+
+test('canceling clears the pending reminders', function () {
+    Notification::fake();
+
+    $booking = bookingFor($this->host, $this->eventType);
+    $booking->reminders()->create(['minutes_before' => 60, 'send_at' => now()->addDay()]);
+
+    $this->actingAs($this->host)
+        ->delete(route('meetings.destroy', [
+            'current_team' => $this->team->slug,
+            'booking' => $booking->uid,
+        ]));
+
+    expect($booking->fresh()->reminders)->toHaveCount(0);
+});
+
+test('a stranger cannot cancel a booking', function () {
+    $booking = bookingFor($this->host, $this->eventType);
+    $stranger = User::factory()->create();
+
+    $this->actingAs($stranger)
+        ->delete(route('meetings.destroy', [
+            'current_team' => $this->team->slug,
+            'booking' => $booking->uid,
+        ]))
+        ->assertForbidden();
+});
+
+test('due reminders are sent once', function () {
+    Notification::fake();
+
+    $booking = bookingFor($this->host, $this->eventType);
+    $reminder = $booking->reminders()->create([
+        'minutes_before' => 60,
+        'send_at' => now()->subMinute(),
+    ]);
+
+    $this->artisan('bookings:send-reminders')->assertSuccessful();
+
+    expect($reminder->fresh()->sent_at)->not->toBeNull();
+
+    Notification::assertSentTo($this->host, BookingReminderNotification::class);
+
+    Notification::fake();
+    $this->artisan('bookings:send-reminders')->assertSuccessful();
+    Notification::assertNothingSent();
+});
+
+test('due reminders reach the invitee and every additional guest', function () {
+    Notification::fake();
+
+    $booking = bookingFor($this->host, $this->eventType, ['email' => 'sam@example.com']);
+    $booking->guests()->create(['email' => 'guest@example.com']);
+
+    $booking->reminders()->create([
+        'minutes_before' => 60,
+        'send_at' => now()->subMinute(),
+    ]);
+
+    $this->artisan('bookings:send-reminders')->assertSuccessful();
+
+    Notification::assertSentTo($this->host, BookingReminderNotification::class);
+
+    foreach (['sam@example.com', 'guest@example.com'] as $email) {
+        Notification::assertSentOnDemand(
+            BookingReminderNotification::class,
+            fn ($notification, $channels, $notifiable) => $notifiable->routes['mail'] === $email,
+        );
+    }
+});
+
+test('reminders for canceled bookings are discarded', function () {
+    Notification::fake();
+
+    $booking = bookingFor($this->host, $this->eventType, ['status' => BookingStatus::Canceled]);
+    $reminder = $booking->reminders()->create([
+        'minutes_before' => 60,
+        'send_at' => now()->subMinute(),
+    ]);
+
+    $this->artisan('bookings:send-reminders')->assertSuccessful();
+
+    expect(BookingReminder::find($reminder->id))->toBeNull();
+
+    Notification::assertNothingSent();
+});
+
+test('the ics document describes the meeting', function () {
+    $booking = bookingFor($this->host, $this->eventType, [
+        'name' => 'Sam Rivera',
+        'email' => 'sam@example.com',
+        'meeting_url' => 'https://teams.microsoft.com/l/meetup-join/abc',
+    ]);
+
+    $ics = app(IcsGenerator::class)->forBooking($booking->fresh(['eventType', 'host', 'hosts', 'guests', 'answers']));
+
+    expect($ics)->toContain('BEGIN:VCALENDAR')
+        ->and($ics)->toContain('METHOD:REQUEST')
+        ->and($ics)->toContain('UID:'.$booking->uid)
+        ->and($ics)->toContain('DTSTART:20260903T150000Z')
+        ->and($ics)->toContain('DTEND:20260903T153000Z')
+        ->and($ics)->toContain('STATUS:CONFIRMED')
+        ->and($ics)->toContain('mailto:sam@example.com')
+        ->and($ics)->toContain('END:VCALENDAR');
+});
+
+test('a canceled booking produces a cancelling ics document', function () {
+    $booking = bookingFor($this->host, $this->eventType, ['status' => BookingStatus::Canceled]);
+
+    $ics = app(IcsGenerator::class)->forBooking($booking->fresh(['eventType', 'host', 'hosts', 'guests', 'answers']));
+
+    expect($ics)->toContain('METHOD:CANCEL')
+        ->and($ics)->toContain('STATUS:CANCELLED');
+});
+
+test('meetings are grouped under a day heading', function () {
+    bookingFor($this->host, $this->eventType, [
+        'starts_at' => CarbonImmutable::parse('2026-09-01 15:00:00', 'UTC'),
+        'ends_at' => CarbonImmutable::parse('2026-09-01 15:30:00', 'UTC'),
+    ]);
+
+    $this->actingAs($this->host)
+        ->get(route('meetings.index', ['current_team' => $this->team->slug]))
+        ->assertInertia(fn ($page) => $page
+            ->where('meetings.0.dateLabel', 'Today')
+            ->where('meetings.0.dateKey', '2026-09-01'));
+});
+
+test('the this week range only covers the current week', function () {
+    bookingFor($this->host, $this->eventType, [
+        'starts_at' => CarbonImmutable::parse('2026-09-03 15:00:00', 'UTC'),
+        'ends_at' => CarbonImmutable::parse('2026-09-03 15:30:00', 'UTC'),
+    ]);
+    bookingFor($this->host, $this->eventType, [
+        'starts_at' => CarbonImmutable::parse('2026-09-20 15:00:00', 'UTC'),
+        'ends_at' => CarbonImmutable::parse('2026-09-20 15:30:00', 'UTC'),
+    ]);
+
+    $this->actingAs($this->host)
+        ->get(route('meetings.index', ['current_team' => $this->team->slug, 'filter' => 'this_week']))
+        ->assertInertia(fn ($page) => $page->has('meetings', 1)->where('total', 1));
+});
+
+test('the today chip only covers today', function () {
+    bookingFor($this->host, $this->eventType, [
+        'starts_at' => CarbonImmutable::parse('2026-09-01 15:00:00', 'UTC'),
+        'ends_at' => CarbonImmutable::parse('2026-09-01 15:30:00', 'UTC'),
+    ]);
+    bookingFor($this->host, $this->eventType, [
+        'starts_at' => CarbonImmutable::parse('2026-09-04 15:00:00', 'UTC'),
+        'ends_at' => CarbonImmutable::parse('2026-09-04 15:30:00', 'UTC'),
+    ]);
+
+    $this->actingAs($this->host)
+        ->get(route('meetings.index', ['current_team' => $this->team->slug, 'filter' => 'today']))
+        ->assertInertia(fn ($page) => $page->has('meetings', 1)->where('total', 1));
+});
+
+test('cancelled meetings are found through the status filter', function () {
+    bookingFor($this->host, $this->eventType, ['status' => BookingStatus::Canceled]);
+
+    $this->actingAs($this->host)
+        ->get(route('meetings.index', ['current_team' => $this->team->slug, 'filter' => 'upcoming']))
+        ->assertInertia(fn ($page) => $page->has('meetings', 0));
+
+    $this->actingAs($this->host)
+        ->get(route('meetings.index', [
+            'current_team' => $this->team->slug,
+            'filter' => 'upcoming',
+            'status' => 'canceled',
+        ]))
+        ->assertInertia(fn ($page) => $page->has('meetings', 1));
+});
+
+test('the detail payload carries everything the side panel shows', function () {
+    $booking = bookingFor($this->host, $this->eventType, [
+        'name' => 'Max Menchaca',
+        'email' => 'max@example.com',
+        'notes' => 'Looking for a new management company.',
+        'invitee_timezone' => 'America/Chicago',
+    ]);
+    $booking->answers()->create(['label' => 'Best number?', 'answer' => '+1 832 298 6554']);
+
+    $this->actingAs($this->host)
+        ->get(route('meetings.index', ['current_team' => $this->team->slug]))
+        ->assertInertia(fn ($page) => $page
+            ->where('meetings.0.inviteeInitials', 'MM')
+            ->where('meetings.0.fullDateLabel', 'Thursday, 3 September')
+            ->where('meetings.0.timeWithZone', '10:00 am - 10:30 am (CDT)')
+            ->where('meetings.0.notes', 'Looking for a new management company.')
+            ->where('meetings.0.answers.0.label', 'Best number?')
+            ->where('meetings.0.hostNames.0', 'Dana Reed'));
+});
+
+test('a host can save private notes against a meeting', function () {
+    $booking = bookingFor($this->host, $this->eventType);
+
+    $this->actingAs($this->host)
+        ->patch(route('meetings.notes.update', [
+            'current_team' => $this->team->slug,
+            'booking' => $booking->uid,
+        ]), ['host_notes' => 'Follow up about the East Houston property.'])
+        ->assertSessionHasNoErrors();
+
+    expect($booking->fresh()->host_notes)->toBe('Follow up about the East Houston property.');
+});
+
+test('someone who cannot see a meeting cannot write notes on it', function () {
+    $booking = bookingFor($this->host, $this->eventType);
+    $stranger = User::factory()->create();
+
+    $this->actingAs($stranger)
+        ->patch(route('meetings.notes.update', [
+            'current_team' => $this->team->slug,
+            'booking' => $booking->uid,
+        ]), ['host_notes' => 'Nope'])
+        ->assertForbidden();
+});
+
+test('meetings can be searched by invitee or event type', function () {
+    bookingFor($this->host, $this->eventType, ['name' => 'Sam Rivera']);
+    bookingFor($this->host, $this->eventType, ['name' => 'Jo Baker']);
+
+    $this->actingAs($this->host)
+        ->get(route('meetings.index', ['current_team' => $this->team->slug, 'search' => 'Rivera']))
+        ->assertInertia(fn ($page) => $page
+            ->has('meetings', 1)
+            ->where('meetings.0.inviteeName', 'Sam Rivera'));
+});
+
+test('meetings can be filtered to one event type', function () {
+    $other = EventType::factory()->ownedBy($this->host)->create(['name' => 'Deep dive']);
+
+    bookingFor($this->host, $this->eventType);
+    bookingFor($this->host, $other);
+
+    $this->actingAs($this->host)
+        ->get(route('meetings.index', [
+            'current_team' => $this->team->slug,
+            'event_type' => $other->id,
+        ]))
+        ->assertInertia(fn ($page) => $page
+            ->has('meetings', 1)
+            ->where('meetings.0.eventTypeName', 'Deep dive'));
+});
+
+test('the list reports whether more meetings are waiting', function () {
+    foreach (range(1, 21) as $index) {
+        bookingFor($this->host, $this->eventType, [
+            'starts_at' => CarbonImmutable::parse('2026-09-03 09:00:00', 'UTC')->addMinutes($index * 45),
+            'ends_at' => CarbonImmutable::parse('2026-09-03 09:30:00', 'UTC')->addMinutes($index * 45),
+        ]);
+    }
+
+    $this->actingAs($this->host)
+        ->get(route('meetings.index', ['current_team' => $this->team->slug]))
+        ->assertInertia(fn ($page) => $page
+            ->where('total', 21)
+            ->where('hasMore', true)
+            ->has('meetings', 20));
+
+    $this->actingAs($this->host)
+        ->get(route('meetings.index', ['current_team' => $this->team->slug, 'page' => 2]))
+        ->assertInertia(fn ($page) => $page
+            ->where('hasMore', false)
+            ->has('meetings', 1));
+});
+
+test('the scope picker is offered on the meetings list', function () {
+    $this->actingAs($this->host)
+        ->get(route('meetings.index', ['current_team' => $this->team->slug]))
+        ->assertInertia(fn ($page) => $page
+            ->where('scope', 'all')
+            ->has('scopeOptions.primary', 2)
+            ->has('ranges', 5));
+});

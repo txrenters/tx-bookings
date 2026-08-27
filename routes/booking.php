@@ -1,0 +1,25 @@
+<?php
+
+use App\Http\Controllers\Booking\BookingPageController;
+use App\Http\Controllers\Booking\PublicBookingController;
+use Illuminate\Support\Facades\Route;
+
+/*
+ * The public, unauthenticated booking flow. These live under /book and
+ * /booking so they can never collide with the team prefixed app routes.
+ */
+Route::get('book/{page}', [BookingPageController::class, 'show'])->name('book.page');
+Route::get('book/{page}/{eventType}', [BookingPageController::class, 'eventType'])->name('book.event-type');
+Route::post('book/{page}/{eventType}', [PublicBookingController::class, 'store'])
+    ->middleware('throttle:20,1')
+    ->name('book.store');
+
+Route::get('booking/{booking}', [PublicBookingController::class, 'show'])->name('booking.show');
+Route::get('booking/{booking}/reschedule', [PublicBookingController::class, 'editSchedule'])->name('booking.reschedule');
+Route::post('booking/{booking}/reschedule', [PublicBookingController::class, 'updateSchedule'])
+    ->middleware('throttle:20,1')
+    ->name('booking.reschedule.store');
+Route::get('booking/{booking}/cancel', [PublicBookingController::class, 'confirmCancel'])->name('booking.cancel');
+Route::delete('booking/{booking}', [PublicBookingController::class, 'cancel'])
+    ->middleware('throttle:20,1')
+    ->name('booking.cancel.store');
