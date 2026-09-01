@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, router, setLayoutProps, useForm } from '@inertiajs/vue3';
-import { Check, RotateCcw, Search, SlidersHorizontal } from '@lucide/vue';
+import { Check, Clock, RotateCcw, Search, SlidersHorizontal } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
 import MeetingDetailPanel from '@/components/scheduling/MeetingDetailPanel.vue';
 import ScopePicker from '@/components/scheduling/ScopePicker.vue';
@@ -30,7 +30,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useCurrentTeam } from '@/composables/useCurrentTeam';
-import { destroy, index } from '@/routes/meetings';
+import { decline, destroy, index } from '@/routes/meetings';
 
 type Meeting = {
     uid: string;
@@ -62,6 +62,7 @@ type Meeting = {
     guests: string[];
     answers: Array<{ label: string; answer: string | null }>;
     canCancel: boolean;
+    canApprove: boolean;
 };
 
 type Option = { value: string; label: string; initial: string | null };
@@ -90,6 +91,8 @@ const search = ref(props.search);
 const selected = ref<Meeting | null>(null);
 const canceling = ref<Meeting | null>(null);
 const cancelForm = useForm({ reason: '' });
+const declining = ref<Meeting | null>(null);
+const declineForm = useForm({ reason: '' });
 
 /** Meetings under their day heading, the way the list reads down the page. */
 const days = computed(() => {
@@ -170,6 +173,25 @@ const confirmCancel = () => {
                 canceling.value = null;
                 selected.value = null;
                 cancelForm.reset();
+            },
+        },
+    );
+};
+
+const confirmDecline = () => {
+    if (!declining.value) {
+        return;
+    }
+
+    declineForm.post(
+        decline({ current_team: teamSlug.value, booking: declining.value.uid })
+            .url,
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                declining.value = null;
+                selected.value = null;
+                declineForm.reset();
             },
         },
     );
@@ -268,6 +290,9 @@ setLayoutProps({
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="active">Active</SelectItem>
+                                <SelectItem value="pending">
+                                    Pending approval
+                                </SelectItem>
                                 <SelectItem value="canceled">
                                     Cancelled &amp; rescheduled
                                 </SelectItem>
@@ -324,8 +349,15 @@ setLayoutProps({
                         @click="selected = meeting"
                     >
                         <span class="w-40 shrink-0">
+                            <Badge
+                                v-if="meeting.status === 'pending'"
+                                variant="secondary"
+                                data-test="pending-badge"
+                            >
+                                <Clock class="size-3" /> Pending
+                            </Badge>
                             <span
-                                v-if="meeting.status !== 'confirmed'"
+                                v-else-if="meeting.status !== 'confirmed'"
                                 class="flex items-center gap-1.5 text-xs text-muted-foreground"
                             >
                                 <RotateCcw class="size-3" />
@@ -381,7 +413,38 @@ setLayoutProps({
         :team-slug="teamSlug"
         @close="selected = null"
         @cancel="canceling = selected"
+        @decline="declining = selected"
     />
+
+    <Dialog :open="declining !== null" @update:open="declining = null">
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Decline this request?</DialogTitle>
+                <DialogDescription>
+                    {{ declining?.inviteeName }} will be emailed that the time
+                    doesn't work.
+                </DialogDescription>
+            </DialogHeader>
+
+            <div class="grid gap-2">
+                <Label for="decline-reason">Reason (optional)</Label>
+                <Textarea id="decline-reason" v-model="declineForm.reason" />
+            </div>
+
+            <DialogFooter>
+                <Button variant="outline" @click="declining = null">
+                    Keep it
+                </Button>
+                <Button
+                    variant="destructive"
+                    data-test="confirm-decline-booking"
+                    @click="confirmDecline"
+                >
+                    Decline request
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
 
     <Dialog :open="canceling !== null" @update:open="canceling = null">
         <DialogContent>

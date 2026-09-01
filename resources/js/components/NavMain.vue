@@ -18,7 +18,7 @@ withDefaults(
     { label: 'Workspace' },
 );
 
-const { isCurrentUrl } = useCurrentUrl();
+const { isCurrentUrl, isCurrentOrParentUrl } = useCurrentUrl();
 </script>
 
 <template>
@@ -28,7 +28,11 @@ const { isCurrentUrl } = useCurrentUrl();
             <SidebarMenuItem v-for="item in items" :key="item.title">
                 <SidebarMenuButton
                     as-child
-                    :is-active="isCurrentUrl(item.href)"
+                    :is-active="
+                        item.activePrefix
+                            ? isCurrentOrParentUrl(item.activePrefix)
+                            : isCurrentUrl(item.href)
+                    "
                     :tooltip="item.title"
                 >
                     <Link :href="item.href">

@@ -146,6 +146,28 @@
 }
 
 /*
+  Theme switches animate as a circular sweep via the View Transitions API
+  (see AppearanceToggle.vue). The default crossfade is disabled so the custom
+  clip-path animation is the only motion. Reduced motion never reaches here:
+  the toggle skips the view transition entirely and switches instantly.
+*/
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+}
+
+/*
+  Switching to dark shrinks the outgoing light snapshot instead of growing the
+  incoming dark one, so the old layer must sit on top for that direction. The
+  .dark class is already on <html> while the transition runs, which scopes
+  this to dark switches only.
+*/
+.dark::view-transition-old(root) {
+    z-index: 1;
+}
+
+/*
   Calendly-style palette: one vibrant blue carries every action, sitting on a
   bluish white ground. Light mode keeps cards pure white so the tinted page
   background reads as a recessed surface behind them.

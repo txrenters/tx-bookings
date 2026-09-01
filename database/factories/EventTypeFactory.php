@@ -52,6 +52,16 @@ class EventTypeFactory extends Factory
     }
 
     /**
+     * Make bookings wait for a host's approval.
+     */
+    public function requiresConfirmation(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'requires_confirmation' => true,
+        ]);
+    }
+
+    /**
      * Make the event type a round robin across a pool of hosts.
      */
     public function roundRobin(): static

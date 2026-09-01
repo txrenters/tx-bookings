@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppearanceToggle from '@/components/AppearanceToggle.vue';
 import Breadcrumbs from '@/components/Breadcrumbs.vue';
 import NotificationBell from '@/components/NotificationBell.vue';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -25,6 +26,7 @@ withDefaults(
             </template>
         </div>
 
+        <AppearanceToggle />
         <NotificationBell />
     </header>
 </template>

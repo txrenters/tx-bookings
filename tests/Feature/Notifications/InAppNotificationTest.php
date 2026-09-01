@@ -5,6 +5,8 @@ use App\Models\EventType;
 use App\Models\User;
 use App\Notifications\Bookings\BookingCanceled;
 use App\Notifications\Bookings\BookingConfirmed;
+use App\Notifications\Bookings\BookingDeclined;
+use App\Notifications\Bookings\BookingPendingApproval;
 use App\Notifications\Bookings\BookingRescheduled;
 use Illuminate\Notifications\AnonymousNotifiable;
 
@@ -49,6 +51,8 @@ test('every booking notification stores a readable payload', function () {
         [new BookingConfirmed($booking), 'booking.confirmed', 'New booking', 'booked'],
         [new BookingCanceled($booking), 'booking.canceled', 'Booking canceled', 'canceled'],
         [new BookingRescheduled($booking, $booking), 'booking.rescheduled', 'Booking moved', 'moved'],
+        [new BookingPendingApproval($booking), 'booking.pending', 'Approval needed', 'requested'],
+        [new BookingDeclined($booking), 'booking.declined', 'Request declined', 'declined'],
     ];
 
     foreach ($cases as [$notification, $type, $title, $verb]) {

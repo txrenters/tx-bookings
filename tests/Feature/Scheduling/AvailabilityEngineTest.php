@@ -101,6 +101,25 @@ test('an existing booking removes the slot it occupies', function () {
         ->and($starts)->toContain('10:00:00', '12:00:00');
 });
 
+test('a pending booking removes the slot it occupies', function () {
+    $host = scheduledHost();
+    $eventType = EventType::factory()->ownedBy($host)->create(['duration_minutes' => 60]);
+
+    Booking::factory()->pending()->create([
+        'event_type_id' => $eventType->id,
+        'user_id' => $host->id,
+        'team_id' => $eventType->team_id,
+        'starts_at' => CarbonImmutable::parse('2026-09-02 11:00:00', 'UTC'),
+        'ends_at' => CarbonImmutable::parse('2026-09-02 12:00:00', 'UTC'),
+    ]);
+
+    $starts = engine()->slots($eventType, wednesday())
+        ->map(fn ($slot) => $slot->startsAt->toTimeString());
+
+    expect($starts)->not->toContain('11:00:00')
+        ->and($starts)->toContain('10:00:00', '12:00:00');
+});
+
 test('a canceled booking frees its slot again', function () {
     $host = scheduledHost();
     $eventType = EventType::factory()->ownedBy($host)->create(['duration_minutes' => 60]);

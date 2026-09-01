@@ -1,20 +1,27 @@
 <script setup lang="ts">
 import { Head, Link, router, setLayoutProps } from '@inertiajs/vue3';
 import {
+    CalendarPlus,
+    Check,
     ChevronDown,
     Copy,
+    CopyPlus,
     Crown,
     ExternalLink,
     EyeOff,
     MoreVertical,
     Pencil,
     Plus,
+    Power,
     Search,
+    SearchX,
     SlidersHorizontal,
     Trash2,
+    X,
 } from '@lucide/vue';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
+import MonthCalendar from '@/components/booking/MonthCalendar.vue';
 import CreateEventTypePanel from '@/components/scheduling/CreateEventTypePanel.vue';
 import ScopePicker from '@/components/scheduling/ScopePicker.vue';
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +39,7 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuLabel,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
@@ -42,8 +50,22 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useCurrentTeam } from '@/composables/useCurrentTeam';
-import { destroy, edit, index } from '@/routes/scheduling';
+import { index as meetingsIndex } from '@/routes/meetings';
+import {
+    destroy,
+    duplicate as duplicateRoute,
+    edit,
+    index,
+} from '@/routes/scheduling';
+import { update as updateActive } from '@/routes/scheduling/active';
 
 type EventTypeRow = {
     id: number;
@@ -74,6 +96,17 @@ type Kind = {
     requiresTeam: boolean;
 };
 
+type CalendarBooking = {
+    uid: string;
+    name: string;
+    eventTypeName: string | null;
+    color: string | null;
+    timeLabel: string;
+    endTimeLabel: string;
+    status: string;
+    statusLabel: string;
+};
+
 type Props = {
     eventTypes: EventTypeRow[];
     canCreate: boolean;
@@ -95,6 +128,9 @@ type Props = {
         groups: Array<{ value: string; label: string; initial: string | null }>;
         users: Array<{ value: string; label: string; initial: string | null }>;
     };
+    calendarMonth: string;
+    /** Deferred; undefined until the month's meetings stream in. */
+    calendarBookings?: Record<string, CalendarBooking[]>;
 };
 
 const props = defineProps<Props>();
@@ -141,12 +177,24 @@ const grouped = computed(() => {
     return [...sections.values()].sort((a, b) => a.name.localeCompare(b.name));
 });
 
+const activeCount = (group: { eventTypes: EventTypeRow[] }) =>
+    group.eventTypes.filter((eventType) => eventType.isActive).length;
+
 const applyScope = (value: string) => {
     router.get(
         index(teamSlug.value).url,
         { scope: value },
         { preserveState: true, preserveScroll: true },
     );
+};
+
+const hasActiveFilters = computed(
+    () => search.value.trim() !== '' || kindFilter.value !== 'all',
+);
+
+const resetFilters = () => {
+    search.value = '';
+    kindFilter.value = 'all';
 };
 
 /** The kind being created, which also drives the side panel's visibility. */
@@ -159,18 +207,101 @@ const creatingKind = ref<string | null>(null);
   would always come back empty.
 */
 const filterableKinds = computed(() => {
-    const present = new Set(props.eventTypes.map((eventType) => eventType.kind));
+    const present = new Set(
+        props.eventTypes.map((eventType) => eventType.kind),
+    );
 
     return props.kinds.filter(
         (kind) =>
             present.has(kind.value) ||
-            (!kind.requiresTeam || !props.isPersonalTeam),
+            !kind.requiresTeam ||
+            !props.isPersonalTeam,
     );
 });
 
-const copyLink = async (url: string) => {
-    await navigator.clipboard.writeText(url);
-    toast.success('Booking link copied');
+const calendarReloading = ref(false);
+const calendarLoading = computed(
+    () => props.calendarBookings === undefined || calendarReloading.value,
+);
+const calendarDates = computed(() => Object.keys(props.calendarBookings ?? {}));
+const selectedCalendarDate = ref<string | null>(null);
+
+const selectedDayBookings = computed(() =>
+    selectedCalendarDate.value
+        ? (props.calendarBookings?.[selectedCalendarDate.value] ?? [])
+        : [],
+);
+
+const selectedCalendarDateLabel = computed(() =>
+    selectedCalendarDate.value
+        ? new Date(
+              `${selectedCalendarDate.value}T00:00:00Z`,
+          ).toLocaleDateString('en-US', {
+              weekday: 'long',
+              month: 'long',
+              day: 'numeric',
+              timeZone: 'UTC',
+          })
+        : '',
+);
+
+// 'en-CA' renders the local date as YYYY-MM-DD, matching the payload keys.
+const localToday = new Date().toLocaleDateString('en-CA');
+
+// Once the deferred meetings arrive, open on today when it has any.
+watch(calendarDates, (dates) => {
+    if (!selectedCalendarDate.value && dates.includes(localToday)) {
+        selectedCalendarDate.value = localToday;
+    }
+});
+
+const changeCalendarMonth = (month: string) => {
+    selectedCalendarDate.value = null;
+
+    router.reload({
+        data: { calendarMonth: month },
+        only: ['calendarBookings', 'calendarMonth'],
+        onStart: () => (calendarReloading.value = true),
+        onFinish: () => (calendarReloading.value = false),
+    });
+};
+
+const copiedSlug = ref<string | null>(null);
+let copyTimer: number | undefined;
+
+const copyLink = async (eventType: EventTypeRow) => {
+    try {
+        await navigator.clipboard.writeText(eventType.publicUrl);
+        copiedSlug.value = eventType.slug;
+        window.clearTimeout(copyTimer);
+        copyTimer = window.setTimeout(() => (copiedSlug.value = null), 2000);
+    } catch {
+        toast.error('Could not copy the link');
+    }
+};
+
+const displayUrl = (url: string) => url.replace(/^https?:\/\//, '');
+
+const toggleActive = (eventType: EventTypeRow) => {
+    router.patch(
+        updateActive({
+            current_team: teamSlug.value,
+            event_type: eventType.slug,
+        }).url,
+        { is_active: !eventType.isActive },
+        { preserveScroll: true },
+    );
+};
+
+const duplicateEventType = (eventType: EventTypeRow) => {
+    router.post(
+        duplicateRoute({
+            current_team: teamSlug.value,
+            event_type: eventType.slug,
+        }).url,
+        {},
+        { preserveScroll: true },
+    );
 };
 
 const confirmDelete = () => {
@@ -197,13 +328,20 @@ setLayoutProps({
 <template>
     <Head title="Scheduling" />
 
-    <div class="flex h-full flex-1 flex-col gap-5 rounded-xl p-4">
-        <div class="flex items-center justify-between">
-            <h1 class="text-2xl font-semibold tracking-tight">Scheduling</h1>
+    <div class="flex h-full flex-1 flex-col gap-6 p-4 sm:p-6">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+            <div>
+                <h1 class="text-2xl font-semibold tracking-tight">
+                    Scheduling
+                </h1>
+                <p class="mt-1 text-sm text-muted-foreground">
+                    Create and manage the event types people can book with you.
+                </p>
+            </div>
 
             <DropdownMenu v-if="canCreate">
                 <DropdownMenuTrigger as-child>
-                    <Button data-test="new-event-type">
+                    <Button data-test="new-event-type" class="cursor-pointer">
                         <Plus /> Create
                         <ChevronDown class="size-4 opacity-70" />
                     </Button>
@@ -241,218 +379,544 @@ setLayoutProps({
             </DropdownMenu>
         </div>
 
-        <div class="flex flex-wrap items-center gap-2">
-            <ScopePicker
-                :model-value="scope"
-                :options="scopeOptions"
-                @update:model-value="applyScope"
-            />
+        <div class="flex flex-col gap-6 xl:flex-row xl:items-start">
+            <div class="flex min-w-0 flex-1 flex-col gap-6">
+                <div class="flex flex-wrap items-center gap-2">
+                    <ScopePicker
+                        :model-value="scope"
+                        :options="scopeOptions"
+                        @update:model-value="applyScope"
+                    />
 
-            <div class="relative min-w-56 flex-1">
-                <Search
-                    class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-                />
-                <Input
-                    v-model="search"
-                    class="pl-9"
-                    placeholder="Search users or event types"
-                    data-test="search-event-types"
-                />
-            </div>
-
-            <Select v-model="kindFilter">
-                <SelectTrigger class="w-44" data-test="filter-event-types">
-                    <SlidersHorizontal class="size-4 opacity-70" />
-                    <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">All types</SelectItem>
-                    <SelectItem
-                        v-for="kind in filterableKinds"
-                        :key="kind.value"
-                        :value="kind.value"
-                    >
-                        {{ kind.label }}
-                    </SelectItem>
-                </SelectContent>
-            </Select>
-        </div>
-
-        <div v-if="grouped.length" class="flex flex-col gap-6">
-            <section v-for="group in grouped" :key="group.name">
-                <header class="mb-2 flex items-center justify-between gap-3">
-                    <div class="flex items-center gap-2.5">
-                        <span
-                            class="flex size-7 items-center justify-center rounded-full bg-muted text-xs font-medium"
-                        >
-                            {{ group.name.charAt(0) }}
-                        </span>
-                        <span class="font-semibold">{{ group.name }}</span>
+                    <div class="relative min-w-56 flex-1">
+                        <Search
+                            class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+                        />
+                        <Input
+                            v-model="search"
+                            class="pl-9"
+                            placeholder="Search event types..."
+                            data-test="search-event-types"
+                        />
                     </div>
 
-                    <Button
-                        variant="link"
-                        size="sm"
-                        class="h-auto p-0"
-                        as-child
-                    >
-                        <a :href="group.landingUrl" target="_blank">
-                            View landing page
-                            <ExternalLink class="size-3.5" />
-                        </a>
-                    </Button>
-                </header>
+                    <Select v-model="kindFilter">
+                        <SelectTrigger
+                            class="w-44 cursor-pointer"
+                            :class="
+                                kindFilter !== 'all'
+                                    ? 'border-primary text-primary'
+                                    : ''
+                            "
+                            data-test="filter-event-types"
+                        >
+                            <SlidersHorizontal class="size-4 opacity-70" />
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All types</SelectItem>
+                            <SelectItem
+                                v-for="kind in filterableKinds"
+                                :key="kind.value"
+                                :value="kind.value"
+                            >
+                                {{ kind.label }}
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
 
-                <div class="flex flex-col gap-3">
-                    <article
-                        v-for="eventType in group.eventTypes"
-                        :key="eventType.id"
-                        data-test="event-type-row"
-                        class="flex items-center gap-4 overflow-hidden rounded-lg border bg-background"
+                    <Button
+                        v-if="hasActiveFilters"
+                        variant="ghost"
+                        size="sm"
+                        class="cursor-pointer text-muted-foreground"
+                        data-test="reset-filters"
+                        @click="resetFilters"
+                    >
+                        <X class="size-4" /> Reset
+                    </Button>
+                </div>
+
+                <TooltipProvider>
+                    <div v-if="grouped.length" class="flex flex-col gap-8">
+                        <section v-for="group in grouped" :key="group.name">
+                            <header
+                                class="mb-3 flex flex-wrap items-center justify-between gap-3"
+                            >
+                                <div class="flex items-center gap-3">
+                                    <span
+                                        class="flex size-8 items-center justify-center rounded-full bg-muted text-xs font-medium"
+                                    >
+                                        {{ group.name.charAt(0) }}
+                                    </span>
+                                    <div>
+                                        <p class="text-sm font-semibold">
+                                            {{ group.name }}
+                                        </p>
+                                        <p
+                                            class="text-xs text-muted-foreground"
+                                        >
+                                            {{ group.eventTypes.length }} event
+                                            {{
+                                                group.eventTypes.length === 1
+                                                    ? 'type'
+                                                    : 'types'
+                                            }}
+                                            &middot;
+                                            {{ activeCount(group) }} active
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <Button
+                                    variant="link"
+                                    size="sm"
+                                    class="h-auto p-0"
+                                    as-child
+                                >
+                                    <a :href="group.landingUrl" target="_blank">
+                                        View landing page
+                                        <ExternalLink class="size-3.5" />
+                                    </a>
+                                </Button>
+                            </header>
+
+                            <div class="flex flex-col gap-3">
+                                <article
+                                    v-for="eventType in group.eventTypes"
+                                    :key="eventType.id"
+                                    data-test="event-type-row"
+                                    class="relative flex flex-wrap items-center overflow-hidden rounded-lg border bg-card shadow-flat transition-shadow hover:shadow-raised sm:flex-nowrap"
+                                >
+                                    <span
+                                        class="absolute inset-y-0 left-0 w-1.5"
+                                        :style="{
+                                            backgroundColor: eventType.color,
+                                        }"
+                                        aria-hidden="true"
+                                    />
+
+                                    <div
+                                        class="min-w-0 flex-1 basis-full py-3.5 pr-4 pl-5 sm:basis-auto"
+                                    >
+                                        <div
+                                            class="flex flex-wrap items-center gap-2"
+                                        >
+                                            <Link
+                                                :href="
+                                                    edit({
+                                                        current_team: teamSlug,
+                                                        event_type:
+                                                            eventType.slug,
+                                                    })
+                                                "
+                                                class="font-semibold hover:underline"
+                                            >
+                                                {{ eventType.name }}
+                                            </Link>
+                                            <Crown
+                                                v-if="eventType.isShared"
+                                                class="size-3.5 text-muted-foreground"
+                                                aria-label="Organization event type"
+                                            />
+                                            <Badge
+                                                variant="outline"
+                                                class="gap-1.5 font-normal text-muted-foreground"
+                                            >
+                                                <span
+                                                    class="size-1.5 rounded-full"
+                                                    :class="
+                                                        eventType.isActive
+                                                            ? 'bg-success'
+                                                            : 'bg-muted-foreground/40'
+                                                    "
+                                                    aria-hidden="true"
+                                                />
+                                                {{
+                                                    eventType.isActive
+                                                        ? 'Active'
+                                                        : 'Inactive'
+                                                }}
+                                            </Badge>
+                                            <EyeOff
+                                                v-if="eventType.isHidden"
+                                                class="size-3.5 text-muted-foreground"
+                                                aria-label="Hidden from the booking page"
+                                            />
+                                        </div>
+
+                                        <p
+                                            class="mt-1 text-sm text-muted-foreground"
+                                        >
+                                            {{ eventType.durationMinutes }} min
+                                            &middot;
+                                            {{
+                                                eventType.locationLabel
+                                            }}
+                                            &middot;
+                                            {{ eventType.kindLabel }}
+                                            <template
+                                                v-if="
+                                                    eventType.upcomingBookings
+                                                "
+                                            >
+                                                &middot;
+                                                {{ eventType.upcomingBookings }}
+                                                upcoming
+                                            </template>
+                                        </p>
+                                        <p
+                                            class="mt-0.5 text-sm text-muted-foreground"
+                                        >
+                                            {{ eventType.availabilitySummary }}
+                                        </p>
+                                        <p
+                                            class="mt-1 truncate text-xs text-muted-foreground/80"
+                                            :title="eventType.publicUrl"
+                                        >
+                                            {{
+                                                displayUrl(eventType.publicUrl)
+                                            }}
+                                        </p>
+                                    </div>
+
+                                    <div
+                                        class="hidden shrink-0 -space-x-2 pr-2 sm:flex"
+                                    >
+                                        <span
+                                            v-for="host in eventType.hosts.slice(
+                                                0,
+                                                3,
+                                            )"
+                                            :key="host.id"
+                                            :title="host.name"
+                                            class="flex size-7 items-center justify-center rounded-full border-2 border-background bg-muted text-xs font-medium"
+                                        >
+                                            {{ host.initial }}
+                                        </span>
+                                        <span
+                                            v-if="eventType.hosts.length > 3"
+                                            class="flex size-7 items-center justify-center rounded-full border-2 border-background bg-muted text-xs font-medium"
+                                        >
+                                            +{{ eventType.hosts.length - 3 }}
+                                        </span>
+                                    </div>
+
+                                    <div
+                                        class="flex w-full shrink-0 items-center justify-end gap-1 border-t px-3 py-2 sm:w-auto sm:border-t-0 sm:px-0 sm:py-0 sm:pr-4"
+                                    >
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            class="cursor-pointer rounded-full"
+                                            @click="copyLink(eventType)"
+                                        >
+                                            <Check
+                                                v-if="
+                                                    copiedSlug ===
+                                                    eventType.slug
+                                                "
+                                                class="size-3.5 text-success"
+                                                aria-hidden="true"
+                                            />
+                                            <Copy
+                                                v-else
+                                                class="size-3.5"
+                                                aria-hidden="true"
+                                            />
+                                            {{
+                                                copiedSlug === eventType.slug
+                                                    ? 'Copied!'
+                                                    : 'Copy link'
+                                            }}
+                                        </Button>
+
+                                        <Tooltip>
+                                            <TooltipTrigger as-child>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    class="cursor-pointer"
+                                                    :aria-label="`Preview ${eventType.name}`"
+                                                    as-child
+                                                >
+                                                    <a
+                                                        :href="
+                                                            eventType.publicUrl
+                                                        "
+                                                        target="_blank"
+                                                        rel="noopener"
+                                                    >
+                                                        <ExternalLink
+                                                            class="size-4"
+                                                        />
+                                                    </a>
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>Open booking page</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger as-child>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    class="cursor-pointer"
+                                                    :aria-label="`More actions for ${eventType.name}`"
+                                                    :data-test="`event-type-menu-${eventType.slug}`"
+                                                >
+                                                    <MoreVertical
+                                                        class="size-4"
+                                                    />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent
+                                                align="end"
+                                                class="w-44"
+                                            >
+                                                <DropdownMenuItem as-child>
+                                                    <Link
+                                                        :href="
+                                                            edit({
+                                                                current_team:
+                                                                    teamSlug,
+                                                                event_type:
+                                                                    eventType.slug,
+                                                            })
+                                                        "
+                                                    >
+                                                        <Pencil
+                                                            class="size-4"
+                                                        />
+                                                        Edit
+                                                    </Link>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    v-if="canCreate"
+                                                    :data-test="`duplicate-event-type-${eventType.slug}`"
+                                                    @select="
+                                                        duplicateEventType(
+                                                            eventType,
+                                                        )
+                                                    "
+                                                >
+                                                    <CopyPlus class="size-4" />
+                                                    Duplicate
+                                                </DropdownMenuItem>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem
+                                                    :data-test="`toggle-event-type-${eventType.slug}`"
+                                                    @select="
+                                                        toggleActive(eventType)
+                                                    "
+                                                >
+                                                    <Power class="size-4" />
+                                                    {{
+                                                        eventType.isActive
+                                                            ? 'Disable'
+                                                            : 'Enable'
+                                                    }}
+                                                </DropdownMenuItem>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem
+                                                    variant="destructive"
+                                                    @select="
+                                                        deleting = eventType
+                                                    "
+                                                >
+                                                    <Trash2 class="size-4" />
+                                                    Delete
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
+                                </article>
+                            </div>
+                        </section>
+                    </div>
+
+                    <div
+                        v-else-if="eventTypes.length"
+                        class="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-16 text-center"
                     >
                         <span
-                            class="w-1.5 self-stretch"
-                            :style="{ backgroundColor: eventType.color }"
-                        />
-
-                        <div class="min-w-0 flex-1 py-4">
-                            <div class="flex flex-wrap items-center gap-2">
-                                <Link
-                                    :href="
-                                        edit({
-                                            current_team: teamSlug,
-                                            event_type: eventType.slug,
-                                        })
-                                    "
-                                    class="font-semibold hover:underline"
-                                >
-                                    {{ eventType.name }}
-                                </Link>
-                                <Crown
-                                    v-if="eventType.isShared"
-                                    class="size-3.5 text-muted-foreground"
-                                    aria-label="Organization event type"
-                                />
-                                <Badge
-                                    v-if="!eventType.isActive"
-                                    variant="outline"
-                                >
-                                    Off
-                                </Badge>
-                                <EyeOff
-                                    v-if="eventType.isHidden"
-                                    class="size-3.5 text-muted-foreground"
-                                    aria-label="Hidden from the booking page"
-                                />
-                            </div>
-
-                            <p class="mt-0.5 text-sm text-muted-foreground">
-                                {{ eventType.durationMinutes }} min &middot;
-                                {{ eventType.locationLabel }} &middot;
-                                {{ eventType.kindLabel }}
-                            </p>
-                            <p class="mt-0.5 text-sm text-muted-foreground">
-                                {{ eventType.availabilitySummary }}
+                            class="flex size-10 items-center justify-center rounded-full bg-muted"
+                        >
+                            <SearchX class="size-5 text-muted-foreground" />
+                        </span>
+                        <div>
+                            <p class="font-medium">No matching event types</p>
+                            <p class="text-sm text-muted-foreground">
+                                Try a different search, or clear the filters.
                             </p>
                         </div>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            class="cursor-pointer"
+                            @click="resetFilters"
+                        >
+                            Clear filters
+                        </Button>
+                    </div>
 
-                        <div class="flex shrink-0 -space-x-2 pr-2">
-                            <span
-                                v-for="host in eventType.hosts.slice(0, 3)"
-                                :key="host.id"
-                                :title="host.name"
-                                class="flex size-7 items-center justify-center rounded-full border-2 border-background bg-muted text-xs font-medium"
+                    <div
+                        v-else
+                        class="flex flex-col items-center gap-4 rounded-lg border border-dashed px-6 py-20 text-center"
+                    >
+                        <span
+                            class="flex size-12 items-center justify-center rounded-full bg-muted"
+                        >
+                            <CalendarPlus
+                                class="size-6 text-muted-foreground"
+                            />
+                        </span>
+                        <div>
+                            <p class="text-lg font-semibold">
+                                Create your first event type
+                            </p>
+                            <p
+                                class="mx-auto mt-1 max-w-sm text-sm text-muted-foreground"
                             >
-                                {{ host.initial }}
-                            </span>
-                            <span
-                                v-if="eventType.hosts.length > 3"
-                                class="flex size-7 items-center justify-center rounded-full border-2 border-background bg-muted text-xs font-medium"
-                            >
-                                +{{ eventType.hosts.length - 3 }}
-                            </span>
+                                Set up an event people can book with you, and
+                                share one link instead of trading emails.
+                            </p>
                         </div>
+                        <Button
+                            v-if="canCreate"
+                            class="cursor-pointer"
+                            data-test="create-first-event-type"
+                            @click="creatingKind = 'one_on_one'"
+                        >
+                            <Plus /> New event type
+                        </Button>
+                    </div>
+                </TooltipProvider>
+            </div>
 
-                        <div class="flex shrink-0 items-center gap-1 pr-4">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                class="rounded-full"
-                                @click="copyLink(eventType.publicUrl)"
-                            >
-                                <Copy class="size-3.5" /> Copy link
-                            </Button>
-
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                :aria-label="`Preview ${eventType.name}`"
-                                as-child
-                            >
-                                <a :href="eventType.publicUrl" target="_blank">
-                                    <ExternalLink class="size-4" />
-                                </a>
-                            </Button>
-
-                            <DropdownMenu>
-                                <DropdownMenuTrigger as-child>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        :aria-label="`More actions for ${eventType.name}`"
-                                        :data-test="`event-type-menu-${eventType.slug}`"
-                                    >
-                                        <MoreVertical class="size-4" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                    <DropdownMenuItem as-child>
-                                        <Link
-                                            :href="
-                                                edit({
-                                                    current_team: teamSlug,
-                                                    event_type: eventType.slug,
-                                                })
-                                            "
-                                        >
-                                            <Pencil class="size-4" /> Edit
-                                        </Link>
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                        variant="destructive"
-                                        @select="deleting = eventType"
-                                    >
-                                        <Trash2 class="size-4" /> Delete
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        </div>
-                    </article>
-                </div>
-            </section>
-        </div>
-
-        <div
-            v-else-if="eventTypes.length"
-            class="rounded-lg border border-dashed p-12 text-center text-muted-foreground"
-        >
-            Nothing matches that search.
-        </div>
-
-        <div
-            v-else
-            class="rounded-lg border border-dashed p-12 text-center text-muted-foreground"
-        >
-            <p>No event types yet.</p>
-            <Button
-                v-if="canCreate"
-                class="mt-4"
-                data-test="create-first-event-type"
-                @click="creatingKind = 'one_on_one'"
+            <aside
+                class="w-full shrink-0 xl:sticky xl:top-6 xl:w-80"
+                aria-label="Meetings calendar"
             >
-                Create your first one
-            </Button>
+                <section
+                    class="rounded-lg border bg-card p-4 shadow-flat sm:p-5"
+                >
+                    <div class="mb-4 flex items-center justify-between gap-2">
+                        <h2 class="text-sm font-semibold">Your meetings</h2>
+                        <Button
+                            variant="link"
+                            size="sm"
+                            class="h-auto p-0 text-xs"
+                            as-child
+                        >
+                            <Link :href="meetingsIndex(teamSlug)"
+                                >View all</Link
+                            >
+                        </Button>
+                    </div>
+
+                    <MonthCalendar
+                        :month="calendarMonth"
+                        :available-dates="calendarDates"
+                        :selected-date="selectedCalendarDate"
+                        :loading="calendarLoading"
+                        grid-label="Days with meetings"
+                        marked-day-label="has meetings"
+                        unmarked-day-label="no meetings"
+                        @update:month="changeCalendarMonth"
+                        @select="(date) => (selectedCalendarDate = date)"
+                    />
+
+                    <div class="mt-4 border-t pt-4">
+                        <div v-if="calendarLoading" class="space-y-2">
+                            <Skeleton
+                                v-for="index in 3"
+                                :key="index"
+                                class="h-9 w-full animate-pulse rounded-md"
+                            />
+                            <span class="sr-only">Loading meetings</span>
+                        </div>
+
+                        <p
+                            v-else-if="!calendarDates.length"
+                            class="text-sm text-muted-foreground"
+                        >
+                            No meetings this month.
+                        </p>
+
+                        <template v-else-if="selectedCalendarDate">
+                            <h3
+                                class="text-xs font-medium text-muted-foreground"
+                                aria-live="polite"
+                            >
+                                {{ selectedCalendarDateLabel }}
+                            </h3>
+                            <ul class="mt-2 space-y-2">
+                                <li
+                                    v-for="booking in selectedDayBookings"
+                                    :key="booking.uid"
+                                    class="flex items-start gap-2.5 rounded-md border px-3 py-2"
+                                    :data-test="`calendar-meeting-${booking.uid}`"
+                                >
+                                    <span
+                                        class="mt-1.5 size-2 shrink-0 rounded-full"
+                                        :class="
+                                            booking.color
+                                                ? ''
+                                                : 'bg-muted-foreground/40'
+                                        "
+                                        :style="
+                                            booking.color
+                                                ? {
+                                                      backgroundColor:
+                                                          booking.color,
+                                                  }
+                                                : undefined
+                                        "
+                                        aria-hidden="true"
+                                    />
+                                    <div class="min-w-0 flex-1">
+                                        <p class="truncate text-sm font-medium">
+                                            {{
+                                                booking.eventTypeName ??
+                                                'Meeting'
+                                            }}
+                                        </p>
+                                        <p
+                                            class="text-xs text-muted-foreground"
+                                            data-numeric
+                                        >
+                                            {{ booking.timeLabel }} &ndash;
+                                            {{ booking.endTimeLabel }} &middot;
+                                            {{ booking.name }}
+                                        </p>
+                                    </div>
+                                    <Badge
+                                        v-if="booking.status === 'pending'"
+                                        variant="outline"
+                                        class="shrink-0 font-normal text-muted-foreground"
+                                    >
+                                        {{ booking.statusLabel }}
+                                    </Badge>
+                                </li>
+                            </ul>
+                        </template>
+
+                        <p v-else class="text-sm text-muted-foreground">
+                            Days with a dot have meetings &mdash; pick one to
+                            see them.
+                        </p>
+                    </div>
+                </section>
+            </aside>
         </div>
+
+        <!-- Announced without moving focus when a copy succeeds. -->
+        <p aria-live="polite" class="sr-only">
+            {{ copiedSlug ? 'Booking link copied to clipboard' : '' }}
+        </p>
     </div>
 
     <CreateEventTypePanel

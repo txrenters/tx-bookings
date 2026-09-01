@@ -16,8 +16,11 @@ class DashboardController extends Controller
 {
     /**
      * The number of upcoming meetings listed on the dashboard.
+     *
+     * The first feeds the next-meeting hero; the rest fill today's schedule,
+     * so a busy day is not truncated after a handful of rows.
      */
-    protected int $upcomingLimit = 5;
+    protected int $upcomingLimit = 8;
 
     public function __invoke(Request $request, Team $current_team): Response
     {
@@ -101,6 +104,11 @@ class DashboardController extends Controller
                 'startsAt' => $booking->starts_at->toIso8601String(),
                 'dayLabel' => $booking->starts_at->setTimezone($timezone)->isoFormat('ddd D MMM'),
                 'timeLabel' => $booking->starts_at->setTimezone($timezone)->isoFormat('h:mm a'),
+                'endTimeLabel' => $booking->ends_at->setTimezone($timezone)->isoFormat('h:mm a'),
+                'durationMinutes' => (int) $booking->starts_at->diffInMinutes($booking->ends_at),
+                'status' => $booking->status->value,
+                'statusLabel' => $booking->status->label(),
+                'meetingUrl' => $booking->meeting_url,
                 'isToday' => $booking->starts_at->setTimezone($timezone)->isToday(),
             ])
             ->all();
@@ -109,17 +117,12 @@ class DashboardController extends Controller
     /**
      * Scope bookings to the ones this user hosts on the given team.
      *
-     * A booking's host pool lives on the pivot, so a user can host a meeting
-     * they do not own — check both.
-     *
      * @return Builder<Booking>
      */
     protected function hosted(mixed $user, Team $team): Builder
     {
         return Booking::query()
             ->where('team_id', $team->id)
-            ->where(fn ($query) => $query
-                ->where('user_id', $user->id)
-                ->orWhereHas('hosts', fn ($hosts) => $hosts->where('users.id', $user->id)));
+            ->hostedBy($user);
     }
 }

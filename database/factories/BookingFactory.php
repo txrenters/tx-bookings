@@ -42,6 +42,16 @@ class BookingFactory extends Factory
     }
 
     /**
+     * Indicate that the booking still awaits a host's approval.
+     */
+    public function pending(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => BookingStatus::Pending,
+        ]);
+    }
+
+    /**
      * Indicate that the booking was canceled.
      */
     public function canceled(): static

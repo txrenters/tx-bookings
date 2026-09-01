@@ -606,6 +606,19 @@ const setOptions = (question: Record<string, any>, value: string) => {
                 </span>
                 <Switch v-model="fields.is_hidden" />
             </label>
+
+            <label class="flex items-center justify-between gap-4">
+                <span class="text-sm">
+                    Require confirmation
+                    <span class="block text-muted-foreground">
+                        New bookings wait as requests until a host approves them.
+                    </span>
+                </span>
+                <Switch
+                    v-model="fields.requires_confirmation"
+                    data-test="event-type-requires-confirmation"
+                />
+            </label>
         </section>
     </div>
 </template>

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Scheduling;
 
+use App\Actions\Scheduling\DuplicateEventType;
 use App\Actions\Scheduling\SaveEventType;
 use App\Enums\DateRangeType;
 use App\Enums\EventTypeKind;
@@ -10,6 +11,7 @@ use App\Enums\QuestionType;
 use App\Enums\TeamPermission;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Scheduling\SaveEventTypeRequest;
+use App\Models\Booking;
 use App\Models\EventType;
 use App\Models\Group;
 use App\Models\Team;
@@ -17,6 +19,7 @@ use App\Models\User;
 use App\Services\Activity\ActivityLogger;
 use App\Services\Scheduling\EventTypeAvailabilitySummary;
 use App\Services\Scheduling\ScopeFilter;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -53,6 +56,9 @@ class EventTypeController extends Controller
 
         $summaries = app(EventTypeAvailabilitySummary::class)->forMany($eventTypes);
 
+        $timezone = $user->timezone ?: config('scheduling.default_timezone');
+        $calendarMonth = $this->calendarMonth($request, $timezone);
+
         return Inertia::render('scheduling/event-types/Index', [
             ...$this->formOptions($request, $current_team),
             'eventTypes' => $eventTypes->map(fn (EventType $eventType) => $this->toListItem(
@@ -62,6 +68,10 @@ class EventTypeController extends Controller
             'canCreate' => $user->can('create', [EventType::class, $current_team]),
             'scope' => $scope,
             'scopeOptions' => $scopes->options($current_team, $user),
+            'calendarMonth' => $calendarMonth,
+            // The month lookup needs queries of its own, so it streams in
+            // behind the calendar's skeleton, like the dashboard widgets.
+            'calendarBookings' => Inertia::defer(fn () => $this->calendarBookings($user, $current_team, $calendarMonth, $timezone)),
         ]);
     }
 
@@ -135,6 +145,58 @@ class EventTypeController extends Controller
     }
 
     /**
+     * Pause or resume bookings for an event type.
+     */
+    public function updateActive(Request $request, Team $current_team, EventType $event_type): RedirectResponse
+    {
+        Gate::authorize('update', $event_type);
+
+        $validated = $request->validate([
+            'is_active' => ['required', 'boolean'],
+        ]);
+
+        $event_type->update($validated);
+
+        app(ActivityLogger::class)->record(
+            $current_team,
+            'event_type.updated',
+            ($validated['is_active'] ? 'Enabled' : 'Disabled').' the event type "'.$event_type->name.'"',
+            $event_type,
+            ['isActive' => (bool) $validated['is_active']],
+        );
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => $validated['is_active'] ? __('Event type enabled.') : __('Event type disabled.'),
+        ]);
+
+        return back();
+    }
+
+    /**
+     * Duplicate an event type with its questions and host pool.
+     */
+    public function duplicate(Team $current_team, EventType $event_type, DuplicateEventType $duplicateEventType): RedirectResponse
+    {
+        Gate::authorize('update', $event_type);
+        Gate::authorize('create', [EventType::class, $current_team]);
+
+        $copy = $duplicateEventType->handle($event_type);
+
+        app(ActivityLogger::class)->record(
+            $current_team,
+            'event_type.duplicated',
+            'Duplicated the event type "'.$event_type->name.'"',
+            $copy,
+            ['sourceId' => $event_type->id],
+        );
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Event type duplicated.')]);
+
+        return to_route('scheduling.index', ['current_team' => $current_team->slug]);
+    }
+
+    /**
      * Delete an event type.
      */
     public function destroy(Team $current_team, EventType $event_type): RedirectResponse
@@ -155,6 +217,54 @@ class EventTypeController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Event type deleted.')]);
 
         return to_route('scheduling.index', ['current_team' => $current_team->slug]);
+    }
+
+    /**
+     * Get the month the meetings calendar should show, as YYYY-MM.
+     */
+    protected function calendarMonth(Request $request, string $timezone): string
+    {
+        $month = $request->string('calendarMonth')->toString();
+
+        if (preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $month) !== 1) {
+            return CarbonImmutable::now($timezone)->format('Y-m');
+        }
+
+        return $month;
+    }
+
+    /**
+     * Get the meetings the user hosts that month, grouped by day.
+     *
+     * Days follow the user's timezone, so a late-evening meeting lands on the
+     * day the host will actually experience it.
+     *
+     * @return array<string, array<int, array<string, mixed>>>
+     */
+    protected function calendarBookings(User $user, Team $team, string $month, string $timezone): array
+    {
+        $start = CarbonImmutable::parse($month.'-01', $timezone);
+
+        return Booking::query()
+            ->where('team_id', $team->id)
+            ->hostedBy($user)
+            ->active()
+            ->whereBetween('starts_at', [$start->utc(), $start->endOfMonth()->utc()])
+            ->with('eventType:id,name,color')
+            ->orderBy('starts_at')
+            ->get()
+            ->groupBy(fn (Booking $booking) => $booking->starts_at->setTimezone($timezone)->toDateString())
+            ->map(fn ($bookings) => $bookings->map(fn (Booking $booking) => [
+                'uid' => $booking->uid,
+                'name' => $booking->name,
+                'eventTypeName' => $booking->eventType?->name,
+                'color' => $booking->eventType?->color,
+                'timeLabel' => $booking->starts_at->setTimezone($timezone)->isoFormat('h:mm a'),
+                'endTimeLabel' => $booking->ends_at->setTimezone($timezone)->isoFormat('h:mm a'),
+                'status' => $booking->status->value,
+                'statusLabel' => $booking->status->label(),
+            ])->values()->all())
+            ->toArray();
     }
 
     /**
@@ -293,6 +403,7 @@ class EventTypeController extends Controller
             'availabilityScheduleId' => $eventType->availability_schedule_id,
             'isActive' => $eventType->is_active,
             'isHidden' => $eventType->is_hidden,
+            'requiresConfirmation' => $eventType->requires_confirmation,
             'groupId' => $eventType->group_id,
             'ownerId' => $eventType->user_id,
             'hostIds' => $eventType->hosts->pluck('id'),

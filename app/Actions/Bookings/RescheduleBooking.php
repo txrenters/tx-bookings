@@ -65,7 +65,17 @@ class RescheduleBooking
 
         RemoveBookingFromCalendars::dispatch($booking);
 
-        $this->notify->rescheduled($replacement->fresh(['eventType', 'host', 'hosts', 'guests']), $booking);
+        /*
+         * A replacement on an approval-required event type is pending again,
+         * so announcing it as rescheduled would promise a time no host has
+         * agreed to (and attach a cancellation ICS, since the ICS method
+         * follows the booking's non-confirmed status).
+         */
+        $replacement = $replacement->fresh(['eventType', 'host', 'hosts', 'guests']);
+
+        $replacement->status->isConfirmed()
+            ? $this->notify->rescheduled($replacement, $booking)
+            : $this->notify->pending($replacement);
 
         $this->activity->record(
             $replacement->team,

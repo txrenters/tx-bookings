@@ -35,4 +35,12 @@ class BookingPolicy
     {
         return $this->view($user, $booking);
     }
+
+    /**
+     * Determine whether the user can approve a pending booking request.
+     */
+    public function approve(User $user, Booking $booking): bool
+    {
+        return $this->view($user, $booking);
+    }
 }

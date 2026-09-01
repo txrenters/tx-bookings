@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\Scheduling;
 
+use App\Actions\Bookings\ApproveBooking;
 use App\Actions\Bookings\CancelBooking;
+use App\Actions\Bookings\DeclineBooking;
 use App\Enums\BookingStatus;
 use App\Enums\TeamPermission;
 use App\Http\Controllers\Controller;
@@ -62,7 +64,7 @@ class MeetingController extends Controller
 
         $status = $request->string('status', 'active')->toString();
 
-        if (! in_array($status, ['active', 'canceled'], true)) {
+        if (! in_array($status, ['active', 'pending', 'canceled'], true)) {
             $status = 'active';
         }
 
@@ -156,10 +158,13 @@ class MeetingController extends Controller
         $now = CarbonImmutable::now($timezone);
 
         // Cancelled meetings are a status, not a date range, so they can be
-        // combined with any of the chips above the list.
-        $status === 'canceled'
-            ? $query->whereIn('status', [BookingStatus::Canceled, BookingStatus::Rescheduled])
-            : $query->active();
+        // combined with any of the chips above the list. Active includes
+        // pending requests so hosts cannot miss them.
+        match ($status) {
+            'canceled' => $query->whereIn('status', [BookingStatus::Canceled, BookingStatus::Rescheduled]),
+            'pending' => $query->where('status', BookingStatus::Pending),
+            default => $query->active(),
+        };
 
         match ($range) {
             'today' => $query
@@ -246,7 +251,44 @@ class MeetingController extends Controller
                 'answer' => $answer->answer,
             ])->values(),
             'canCancel' => $booking->isChangeable(),
+            'canApprove' => $booking->status === BookingStatus::Pending
+                && $booking->starts_at->isFuture()
+                && Gate::allows('approve', $booking),
         ];
+    }
+
+    /**
+     * Confirm a pending booking request as one of its hosts.
+     */
+    public function approve(Request $request, Team $current_team, Booking $booking, ApproveBooking $approveBooking): RedirectResponse
+    {
+        Gate::authorize('approve', $booking);
+
+        $approveBooking->handle($booking, $request->user());
+
+        $booking->refresh()->status === BookingStatus::Confirmed
+            ? Inertia::flash('toast', ['type' => 'success', 'message' => __('Meeting confirmed.')])
+            : Inertia::flash('toast', ['type' => 'error', 'message' => __('This booking is no longer awaiting approval.')]);
+
+        return back();
+    }
+
+    /**
+     * Turn down a pending booking request as one of its hosts.
+     */
+    public function decline(Request $request, Team $current_team, Booking $booking, DeclineBooking $declineBooking): RedirectResponse
+    {
+        Gate::authorize('cancel', $booking);
+
+        $validated = $request->validate([
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $declineBooking->handle($booking, $request->user(), $validated['reason'] ?? null);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Request declined.')]);
+
+        return back();
     }
 
     /**

@@ -51,6 +51,7 @@ const form = useForm({
     group_id: props.eventType.groupId,
     is_active: props.eventType.isActive,
     is_hidden: props.eventType.isHidden,
+    requires_confirmation: props.eventType.requiresConfirmation,
     host_ids: [...props.eventType.hostIds],
     questions: props.eventType.questions.map((question: any) => ({
         ...question,

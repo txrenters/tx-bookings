@@ -2,6 +2,7 @@
 
 use App\Enums\BookingStatus;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Jobs\SyncBookingToCalendars;
 use App\Models\ActivityLog;
 use App\Models\AvailabilitySchedule;
 use App\Models\Booking;
@@ -9,10 +10,12 @@ use App\Models\EventType;
 use App\Models\User;
 use App\Notifications\Bookings\BookingCanceled;
 use App\Notifications\Bookings\BookingConfirmed;
+use App\Notifications\Bookings\BookingPendingApproval;
 use App\Notifications\Bookings\BookingRescheduled;
 use Carbon\CarbonImmutable;
 use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
 
 beforeEach(function () {
     $this->travelTo(CarbonImmutable::parse('2026-08-31 08:00:00', 'UTC'));
@@ -363,6 +366,122 @@ test('the booking page falls back to the configured default timezone', function 
     $this->get(route('book.event-type', ['page' => 'casey', 'eventType' => 'chat']))
         ->assertOk()
         ->assertInertia(fn ($page) => $page->where('timezone', 'America/Chicago'));
+});
+
+test('booking a requires-confirmation event creates a pending request', function () {
+    Notification::fake();
+    Queue::fake();
+
+    $this->eventType->update(['requires_confirmation' => true]);
+
+    $this->post(route('book.store', ['page' => 'dana', 'eventType' => 'intro']), [
+        'starts_at' => CarbonImmutable::parse('2026-09-02 10:00:00', 'UTC')->toIso8601String(),
+        'timezone' => 'UTC',
+        'name' => 'Sam Rivera',
+        'email' => 'sam@example.com',
+    ]);
+
+    $booking = Booking::first();
+
+    expect($booking->status)->toBe(BookingStatus::Pending)
+        ->and($booking->reminders()->count())->toBe(0);
+
+    Notification::assertSentTo($this->host, BookingPendingApproval::class);
+    Notification::assertSentTo(new AnonymousNotifiable, BookingPendingApproval::class);
+    Notification::assertNotSentTo($this->host, BookingConfirmed::class);
+    Notification::assertNotSentTo(new AnonymousNotifiable, BookingConfirmed::class);
+
+    // The calendars only hear about the booking once a host approves it.
+    Queue::assertNotPushed(SyncBookingToCalendars::class);
+
+    $log = ActivityLog::where('event', 'booking.created')->first();
+
+    expect($log->description)->toContain('requested')
+        ->and($log->properties['requiresApproval'])->toBeTrue();
+});
+
+test('a pending booking blocks the slot for other invitees', function () {
+    Notification::fake();
+
+    $this->eventType->update(['requires_confirmation' => true]);
+
+    $payload = [
+        'starts_at' => CarbonImmutable::parse('2026-09-02 10:00:00', 'UTC')->toIso8601String(),
+        'timezone' => 'UTC',
+        'name' => 'Sam Rivera',
+        'email' => 'sam@example.com',
+    ];
+
+    $this->post(route('book.store', ['page' => 'dana', 'eventType' => 'intro']), $payload);
+
+    $this->post(route('book.store', ['page' => 'dana', 'eventType' => 'intro']), $payload)
+        ->assertSessionHasErrors('starts_at');
+
+    expect(Booking::count())->toBe(1);
+});
+
+test('an invitee can cancel a pending request', function () {
+    Notification::fake();
+
+    $booking = Booking::factory()->pending()->create([
+        'event_type_id' => $this->eventType->id,
+        'user_id' => $this->host->id,
+        'team_id' => $this->eventType->team_id,
+        'starts_at' => CarbonImmutable::parse('2026-09-02 10:00:00', 'UTC'),
+        'ends_at' => CarbonImmutable::parse('2026-09-02 11:00:00', 'UTC'),
+    ]);
+
+    $this->delete(route('booking.cancel.store', ['booking' => $booking->uid]))
+        ->assertRedirect(route('booking.show', ['booking' => $booking->uid]));
+
+    expect($booking->refresh()->status)->toBe(BookingStatus::Canceled);
+
+    Notification::assertSentTo($this->host, BookingCanceled::class);
+});
+
+test('the confirmation page shows the pending state', function () {
+    $booking = Booking::factory()->pending()->create([
+        'event_type_id' => $this->eventType->id,
+        'user_id' => $this->host->id,
+        'team_id' => $this->eventType->team_id,
+        'starts_at' => CarbonImmutable::parse('2026-09-02 10:00:00', 'UTC'),
+        'ends_at' => CarbonImmutable::parse('2026-09-02 11:00:00', 'UTC'),
+    ]);
+
+    $this->get(route('booking.show', ['booking' => $booking->uid]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('book/Confirmed')
+            ->where('booking.status', 'pending'));
+});
+
+test('rescheduling into a requires-confirmation event yields a new pending request', function () {
+    Notification::fake();
+
+    $this->eventType->update(['requires_confirmation' => true]);
+
+    $booking = Booking::factory()->create([
+        'event_type_id' => $this->eventType->id,
+        'user_id' => $this->host->id,
+        'team_id' => $this->eventType->team_id,
+        'starts_at' => CarbonImmutable::parse('2026-09-02 10:00:00', 'UTC'),
+        'ends_at' => CarbonImmutable::parse('2026-09-02 11:00:00', 'UTC'),
+        'email' => 'sam@example.com',
+    ]);
+
+    $this->post(route('booking.reschedule.store', ['booking' => $booking->uid]), [
+        'starts_at' => CarbonImmutable::parse('2026-09-03 14:00:00', 'UTC')->toIso8601String(),
+    ]);
+
+    $replacement = Booking::where('rescheduled_from_id', $booking->id)->first();
+
+    expect($booking->refresh()->status)->toBe(BookingStatus::Rescheduled)
+        ->and($replacement->status)->toBe(BookingStatus::Pending);
+
+    // The new time is a request again, so nothing may promise it as booked.
+    Notification::assertSentTo($this->host, BookingPendingApproval::class);
+    Notification::assertNotSentTo($this->host, BookingRescheduled::class);
+    Notification::assertNotSentTo(new AnonymousNotifiable, BookingRescheduled::class);
 });
 
 test('an invitee who picks no timezone is recorded in the configured default', function () {
