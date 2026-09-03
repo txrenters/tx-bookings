@@ -217,7 +217,7 @@ class Booking extends Model
      */
     public function scopeActive(Builder $query): void
     {
-        $query->where('status', BookingStatus::Confirmed);
+        $query->whereIn('status', [BookingStatus::Pending, BookingStatus::Confirmed]);
     }
 
     /**
@@ -228,6 +228,21 @@ class Booking extends Model
     public function scopeUpcoming(Builder $query): void
     {
         $query->where('starts_at', '>=', now());
+    }
+
+    /**
+     * Scope the query to bookings the given user hosts.
+     *
+     * A booking's host pool lives on the pivot, so a user can host a meeting
+     * they do not own — check both.
+     *
+     * @param  Builder<Booking>  $query
+     */
+    public function scopeHostedBy(Builder $query, User $user): void
+    {
+        $query->where(fn ($inner) => $inner
+            ->where('user_id', $user->id)
+            ->orWhereHas('hosts', fn ($hosts) => $hosts->where('users.id', $user->id)));
     }
 
     /**

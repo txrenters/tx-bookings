@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -43,6 +44,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property-read Collection<int, EventType> $eventTypes
  * @property-read Collection<int, Booking> $bookings
  * @property-read Collection<int, CalendarAccount> $calendarAccounts
+ * @property-read Pivot|null $pivot Present when fetched through a belongsToMany relation.
  */
 #[Fillable(['name', 'email', 'password', 'is_super_admin', 'current_team_id', 'booking_slug', 'timezone', 'welcome_message', 'holiday_country'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]

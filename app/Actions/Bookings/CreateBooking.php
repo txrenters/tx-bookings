@@ -47,7 +47,7 @@ class CreateBooking
                 'event_type_id' => $eventType->id,
                 'team_id' => $eventType->team_id,
                 'user_id' => $hosts->first()->id,
-                'status' => BookingStatus::Confirmed,
+                'status' => $eventType->requires_confirmation ? BookingStatus::Pending : BookingStatus::Confirmed,
                 'starts_at' => $slot->startsAt,
                 'ends_at' => $slot->endsAt,
                 'invitee_timezone' => $attributes['timezone'] ?? config('scheduling.default_timezone'),
@@ -64,14 +64,24 @@ class CreateBooking
             $this->storeGuests($booking, $attributes['guests'] ?? []);
             $this->storeAnswers($booking, $eventType, $attributes['answers'] ?? []);
 
-            $this->scheduleReminders->handle($booking);
+            /*
+             * A pending booking gets its reminders when a host approves it:
+             * SendBookingReminders hard-deletes reminders for non-confirmed
+             * bookings, so rows created now would never survive to be sent.
+             */
+            if ($booking->status->isConfirmed()) {
+                $this->scheduleReminders->handle($booking);
+            }
 
             return $booking;
         });
 
         $booking->load(['eventType', 'host', 'hosts', 'guests', 'answers']);
 
-        SyncBookingToCalendars::dispatch($booking);
+        // A pending booking is written to calendars on approval, not before.
+        if ($booking->status->isConfirmed()) {
+            SyncBookingToCalendars::dispatch($booking);
+        }
 
         /*
          * A reschedule builds its replacement through this action, but the move
@@ -80,14 +90,25 @@ class CreateBooking
          * and record a booking.created the invitee never performed.
          */
         if ($replacing === null) {
-            $this->notify->confirmed($booking);
+            $booking->status->isConfirmed()
+                ? $this->notify->confirmed($booking)
+                : $this->notify->pending($booking);
+
+            $eventTypeName = $booking->eventType->name ?? 'a meeting';
+            $properties = ['startsAt' => $booking->starts_at->toIso8601String(), 'email' => $booking->email];
+
+            if (! $booking->status->isConfirmed()) {
+                $properties['requiresApproval'] = true;
+            }
 
             $this->activity->record(
                 $booking->team,
                 'booking.created',
-                $booking->name.' booked '.($booking->eventType->name ?? 'a meeting'),
+                $booking->status->isConfirmed()
+                    ? $booking->name.' booked '.$eventTypeName
+                    : $booking->name.' requested '.$eventTypeName,
                 $booking,
-                ['startsAt' => $booking->starts_at->toIso8601String(), 'email' => $booking->email],
+                $properties,
             );
         }
 

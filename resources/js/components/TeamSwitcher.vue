@@ -12,6 +12,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { getInitials } from '@/composables/useInitials';
 import { switchMethod } from '@/routes/teams';
 import type { Team } from '@/types';
 
@@ -37,18 +38,27 @@ const currentTeam = computed(() => page.props.currentTeam);
 const teams = computed(() => page.props.teams ?? []);
 const menuContentClass = computed(() =>
     props.inHeader
-        ? 'w-56'
-        : 'w-(--reka-dropdown-menu-trigger-width) min-w-56 rounded-lg',
+        ? 'w-64'
+        : 'w-(--reka-dropdown-menu-trigger-width) min-w-64 rounded-lg',
 );
-const teamItemClass = computed(() =>
-    props.inHeader ? 'cursor-pointer gap-2' : 'cursor-pointer gap-2 p-2',
-);
-const checkIconClass = computed(() =>
-    props.inHeader ? 'ml-auto size-4' : 'ml-auto h-4 w-4',
-);
-const plusIconClass = computed(() => (props.inHeader ? 'size-4' : 'h-4 w-4'));
+
+const subtitleFor = (team: Team) => {
+    const parts = [team.roleLabel ?? 'Organization'];
+
+    if (team.isPersonal) {
+        parts.push('Personal');
+    }
+
+    return parts.join(' · ');
+};
 
 const switchTeam = (team: Team) => {
+    // Re-selecting the current organization would only trigger a pointless
+    // full reload, so treat it as a dismiss.
+    if (team.isCurrent || team.id === currentTeam.value?.id) {
+        return;
+    }
+
     const previousTeamSlug = currentTeam.value?.slug;
 
     router.visit(switchMethod(team.slug), {
@@ -94,17 +104,24 @@ onUnmounted(() => {
                 variant="ghost"
                 :class="
                     props.inHeader
-                        ? 'h-8 gap-1 px-2'
-                        : 'w-full justify-start px-2 has-[>svg]:px-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground'
+                        ? 'h-9 gap-2 px-2'
+                        : 'h-12 w-full justify-start gap-2 px-2 group-data-[collapsible=icon]:justify-center has-[>svg]:px-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground'
                 "
             >
-                <Users
-                    :class="
+                <span
+                    :class="[
+                        'flex shrink-0 items-center justify-center rounded-lg bg-sidebar-primary font-semibold text-sidebar-primary-foreground',
                         props.inHeader
-                            ? 'hidden'
-                            : 'hidden size-4 shrink-0 group-data-[collapsible=icon]:block'
-                    "
-                />
+                            ? 'size-6 text-[10px]'
+                            : 'size-8 text-xs',
+                    ]"
+                    aria-hidden="true"
+                >
+                    <template v-if="currentTeam?.name">
+                        {{ getInitials(currentTeam.name) }}
+                    </template>
+                    <Users v-else class="size-4" />
+                </span>
                 <div
                     :class="
                         props.inHeader
@@ -115,18 +132,24 @@ onUnmounted(() => {
                     <span
                         :class="
                             props.inHeader
-                                ? 'max-w-[120px] truncate font-medium'
+                                ? 'max-w-[140px] truncate font-medium'
                                 : 'truncate font-semibold'
                         "
                     >
-                        {{ currentTeam?.name ?? 'Select team' }}
+                        {{ currentTeam?.name ?? 'Select organization' }}
+                    </span>
+                    <span
+                        v-if="!props.inHeader && currentTeam"
+                        class="truncate text-xs font-normal text-muted-foreground"
+                    >
+                        {{ subtitleFor(currentTeam) }}
                     </span>
                 </div>
                 <ChevronsUpDown
                     :class="
                         props.inHeader
                             ? 'size-4 opacity-50'
-                            : 'ml-auto group-data-[collapsible=icon]:hidden'
+                            : 'ml-auto size-4 opacity-50 group-data-[collapsible=icon]:hidden'
                     "
                 />
             </Button>
@@ -139,30 +162,51 @@ onUnmounted(() => {
             :side-offset="props.inHeader ? undefined : 4"
         >
             <DropdownMenuLabel class="text-xs text-muted-foreground">
-                Teams
+                Organizations
             </DropdownMenuLabel>
             <DropdownMenuItem
                 v-for="team in teams"
                 :key="team.id"
                 data-test="team-switcher-item"
-                :class="teamItemClass"
+                class="cursor-pointer gap-2 p-2"
+                :aria-current="currentTeam?.id === team.id ? 'true' : undefined"
                 @click="switchTeam(team)"
             >
-                {{ team.name }}
+                <span
+                    class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-xs font-semibold text-foreground"
+                    aria-hidden="true"
+                >
+                    {{ getInitials(team.name) }}
+                </span>
+                <div class="grid min-w-0 flex-1 leading-tight">
+                    <span class="truncate text-sm font-medium">
+                        {{ team.name }}
+                    </span>
+                    <span class="truncate text-xs text-muted-foreground">
+                        {{ subtitleFor(team) }}
+                    </span>
+                </div>
                 <Check
                     v-if="currentTeam?.id === team.id"
-                    :class="checkIconClass"
+                    class="ml-auto size-4 shrink-0"
                 />
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <CreateTeamModal>
                 <DropdownMenuItem
                     data-test="team-switcher-new-team"
-                    :class="teamItemClass"
+                    class="cursor-pointer gap-2 p-2"
                     @select.prevent
                 >
-                    <Plus :class="plusIconClass" />
-                    <span class="text-muted-foreground">New organization</span>
+                    <span
+                        class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-dashed border-border bg-transparent"
+                        aria-hidden="true"
+                    >
+                        <Plus class="size-4 text-muted-foreground" />
+                    </span>
+                    <span class="font-medium text-muted-foreground">
+                        New organization
+                    </span>
                 </DropdownMenuItem>
             </CreateTeamModal>
         </DropdownMenuContent>

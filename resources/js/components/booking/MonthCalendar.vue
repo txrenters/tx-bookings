@@ -6,16 +6,25 @@ import { Button } from '@/components/ui/button';
 type Props = {
     /** The visible month as YYYY-MM. */
     month: string;
-    /** Dates with at least one open slot, as YYYY-MM-DD. */
+    /** Dates carrying the marker dot, as YYYY-MM-DD. */
     availableDates: string[];
     selectedDate: string | null;
     loading?: boolean;
     minMonth?: string;
+    /** Grid aria-label prefix; the month name is appended. */
+    gridLabel?: string;
+    /** Announced after the date on days carrying the marker. */
+    markedDayLabel?: string;
+    /** Announced after the date on days without it. */
+    unmarkedDayLabel?: string;
 };
 
 const props = withDefaults(defineProps<Props>(), {
     loading: false,
     minMonth: undefined,
+    gridLabel: 'Available dates',
+    markedDayLabel: 'times available',
+    unmarkedDayLabel: 'no times available',
 });
 
 const emit = defineEmits<{
@@ -222,7 +231,7 @@ const onKeydown = (event: KeyboardEvent, date: string) => {
 
         <div
             role="grid"
-            :aria-label="`Available dates in ${monthLabel}`"
+            :aria-label="`${gridLabel} in ${monthLabel}`"
             :aria-busy="loading"
         >
             <div
@@ -251,8 +260,8 @@ const onKeydown = (event: KeyboardEvent, date: string) => {
                             :aria-pressed="selectedDate === cell.date"
                             :aria-label="
                                 available.has(cell.date)
-                                    ? `${dayLabel(cell.date)}, times available`
-                                    : `${dayLabel(cell.date)}, no times available`
+                                    ? `${dayLabel(cell.date)}, ${markedDayLabel}`
+                                    : `${dayLabel(cell.date)}, ${unmarkedDayLabel}`
                             "
                             :data-test="`calendar-day-${cell.date}`"
                             :class="[

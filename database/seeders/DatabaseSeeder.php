@@ -2,24 +2,54 @@
 
 namespace Database\Seeders;
 
+use App\Actions\Scheduling\ApplyDefaultHolidays;
+use App\Actions\Scheduling\CreateDefaultAvailability;
+use App\Actions\Teams\CreateTeam;
 use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
+    /**
+     * The default accounts for first logins; everyone starts with "password".
+     *
+     * Registration is invitation-only, so the first accounts have to come
+     * from here; further teammates are invited from inside the app. Built
+     * without factories on purpose: Faker is a dev dependency, and this
+     * seeder also runs on production via the seed_default_users migration.
+     *
+     * @var array<int, array{name: string, email: string}>
+     */
+    protected array $defaultUsers = [
+        ['name' => 'TexasRenters Admin', 'email' => 'automation@texasrenters.com'],
+        ['name' => 'Test User', 'email' => 'test@example.com'],
+    ];
 
     /**
      * Seed the application's database.
+     *
+     * Safe to rerun: accounts that already exist are left untouched.
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        foreach ($this->defaultUsers as $defaults) {
+            if (User::query()->where('email', $defaults['email'])->exists()) {
+                continue;
+            }
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+            DB::transaction(function () use ($defaults) {
+                $user = User::create([...$defaults, 'password' => 'password']);
+
+                // Seeded accounts skip the verification email round trip.
+                $user->forceFill(['email_verified_at' => now()])->save();
+
+                // Mirror registration (CreateNewUser), so the account is
+                // bookable right away.
+                app(CreateTeam::class)->handle($user, $user->name."'s Organization", isPersonal: true);
+                app(CreateDefaultAvailability::class)->handle($user);
+                app(ApplyDefaultHolidays::class)->handle($user);
+            });
+        }
     }
 }

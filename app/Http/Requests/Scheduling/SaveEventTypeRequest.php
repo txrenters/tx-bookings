@@ -55,6 +55,7 @@ class SaveEventTypeRequest extends FormRequest
             ],
             'is_active' => ['boolean'],
             'is_hidden' => ['boolean'],
+            'requires_confirmation' => ['boolean'],
 
             'user_id' => [
                 'nullable',

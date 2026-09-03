@@ -2,16 +2,22 @@
 
 use App\Enums\BookingStatus;
 use App\Enums\TeamRole;
+use App\Jobs\RemoveBookingFromCalendars;
+use App\Jobs\SyncBookingToCalendars;
+use App\Models\ActivityLog;
 use App\Models\Booking;
 use App\Models\BookingReminder;
 use App\Models\EventType;
 use App\Models\Team;
 use App\Models\User;
 use App\Notifications\Bookings\BookingCanceled;
+use App\Notifications\Bookings\BookingConfirmed;
+use App\Notifications\Bookings\BookingDeclined;
 use App\Notifications\Bookings\BookingReminder as BookingReminderNotification;
 use App\Services\Ics\IcsGenerator;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
 
 beforeEach(function () {
     $this->travelTo(CarbonImmutable::parse('2026-09-01 08:00:00', 'UTC'));
@@ -393,4 +399,120 @@ test('the scope picker is offered on the meetings list', function () {
             ->where('scope', 'all')
             ->has('scopeOptions.primary', 2)
             ->has('ranges', 5));
+});
+
+test('a host can approve a pending booking', function () {
+    Notification::fake();
+    Queue::fake();
+
+    $booking = bookingFor($this->host, $this->eventType, ['status' => BookingStatus::Pending]);
+
+    $this->actingAs($this->host)
+        ->post(route('meetings.approve', [
+            'current_team' => $this->team->slug,
+            'booking' => $booking->uid,
+        ]))
+        ->assertRedirect();
+
+    $booking->refresh();
+
+    expect($booking->status)->toBe(BookingStatus::Confirmed)
+        ->and($booking->reminders()->count())->toBe(count(config('scheduling.reminder_lead_times')));
+
+    Queue::assertPushed(SyncBookingToCalendars::class);
+    Notification::assertSentOnDemand(BookingConfirmed::class);
+
+    $log = ActivityLog::where('event', 'booking.approved')->first();
+
+    expect($log)->not->toBeNull()
+        ->and($log->user_id)->toBe($this->host->id);
+});
+
+test('approving a booking that is no longer pending changes nothing', function () {
+    Notification::fake();
+
+    $booking = bookingFor($this->host, $this->eventType, [
+        'status' => BookingStatus::Canceled,
+        'canceled_at' => now(),
+    ]);
+
+    $this->actingAs($this->host)
+        ->post(route('meetings.approve', [
+            'current_team' => $this->team->slug,
+            'booking' => $booking->uid,
+        ]))
+        ->assertRedirect();
+
+    expect($booking->refresh()->status)->toBe(BookingStatus::Canceled);
+
+    Notification::assertNothingSent();
+});
+
+test('a stranger cannot approve or decline a booking', function () {
+    $booking = bookingFor($this->host, $this->eventType, ['status' => BookingStatus::Pending]);
+    $stranger = User::factory()->create();
+
+    $this->actingAs($stranger)
+        ->post(route('meetings.approve', [
+            'current_team' => $this->team->slug,
+            'booking' => $booking->uid,
+        ]))
+        ->assertForbidden();
+
+    $this->actingAs($stranger)
+        ->post(route('meetings.decline', [
+            'current_team' => $this->team->slug,
+            'booking' => $booking->uid,
+        ]))
+        ->assertForbidden();
+
+    expect($booking->refresh()->status)->toBe(BookingStatus::Pending);
+});
+
+test('a host can decline a pending booking with a reason', function () {
+    Notification::fake();
+    Queue::fake();
+
+    $booking = bookingFor($this->host, $this->eventType, ['status' => BookingStatus::Pending]);
+
+    $this->actingAs($this->host)
+        ->post(route('meetings.decline', [
+            'current_team' => $this->team->slug,
+            'booking' => $booking->uid,
+        ]), ['reason' => 'No availability that day'])
+        ->assertRedirect();
+
+    $booking->refresh();
+
+    expect($booking->status)->toBe(BookingStatus::Canceled)
+        ->and($booking->canceled_by)->toBe('host')
+        ->and($booking->cancellation_reason)->toBe('No availability that day');
+
+    Notification::assertSentOnDemand(BookingDeclined::class);
+
+    // Nothing was ever synced, so there is no calendar event to remove.
+    Queue::assertNotPushed(RemoveBookingFromCalendars::class);
+
+    expect(ActivityLog::where('event', 'booking.declined')->exists())->toBeTrue();
+});
+
+test('the pending filter lists only pending meetings', function () {
+    bookingFor($this->host, $this->eventType, ['status' => BookingStatus::Pending, 'name' => 'Sam Rivera']);
+    bookingFor($this->host, $this->eventType, [
+        'starts_at' => CarbonImmutable::parse('2026-09-04 15:00:00', 'UTC'),
+        'ends_at' => CarbonImmutable::parse('2026-09-04 15:30:00', 'UTC'),
+    ]);
+
+    $this->actingAs($this->host)
+        ->get(route('meetings.index', ['current_team' => $this->team->slug, 'status' => 'pending']))
+        ->assertInertia(fn ($page) => $page
+            ->has('meetings', 1)
+            ->where('meetings.0.inviteeName', 'Sam Rivera')
+            ->where('meetings.0.status', 'pending')
+            ->where('meetings.0.canApprove', true));
+
+    // The default active listing keeps pending requests visible.
+    $this->actingAs($this->host)
+        ->get(route('meetings.index', ['current_team' => $this->team->slug]))
+        ->assertInertia(fn ($page) => $page->has('meetings', 2));
 });

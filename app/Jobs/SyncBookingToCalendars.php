@@ -33,7 +33,7 @@ class SyncBookingToCalendars implements ShouldQueue
     {
         $booking = $this->booking->fresh(['eventType', 'hosts', 'guests', 'answers', 'host']);
 
-        if ($booking === null || ! $booking->status->isActive()) {
+        if ($booking === null || ! $booking->status->isConfirmed()) {
             return;
         }
 

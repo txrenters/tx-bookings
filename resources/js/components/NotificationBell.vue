@@ -5,6 +5,7 @@ import {
     CalendarClock,
     CalendarX,
     Check,
+    Hourglass,
     RefreshCw,
     X,
 } from '@lucide/vue';
@@ -58,7 +59,11 @@ const badgeLabel = computed(() =>
 );
 
 const iconFor = (type: string) => {
-    if (type === 'booking.canceled') {
+    if (type === 'booking.pending') {
+        return Hourglass;
+    }
+
+    if (type === 'booking.canceled' || type === 'booking.declined') {
         return CalendarX;
     }
 

@@ -42,10 +42,30 @@ const isCanceled = computed(
         props.booking.status === 'canceled' ||
         props.booking.status === 'rescheduled',
 );
+
+const isPending = computed(() => props.booking.status === 'pending');
+
+const headline = computed(() => {
+    if (isCanceled.value) {
+        return 'This booking is canceled';
+    }
+
+    return isPending.value ? 'Booking request sent' : 'You are booked';
+});
+
+const subline = computed(() => {
+    if (isCanceled.value) {
+        return 'Nothing is on the calendar any more.';
+    }
+
+    return isPending.value
+        ? "You'll get a confirmation email once a host approves it."
+        : 'A calendar invitation is on its way to your inbox.';
+});
 </script>
 
 <template>
-    <Head :title="isCanceled ? 'Booking canceled' : 'Booking confirmed'" />
+    <Head :title="headline" />
 
     <div class="min-h-svh bg-background px-4 py-12 sm:py-20">
         <div
@@ -55,7 +75,7 @@ const isCanceled = computed(
                 <span
                     :class="[
                         'mx-auto flex size-12 items-center justify-center rounded-full',
-                        isCanceled
+                        isCanceled || isPending
                             ? 'bg-muted text-muted-foreground'
                             : 'bg-success-muted text-success-muted-foreground',
                     ]"
@@ -65,22 +85,19 @@ const isCanceled = computed(
                         class="size-6"
                         aria-hidden="true"
                     />
+                    <Clock
+                        v-else-if="isPending"
+                        class="size-6"
+                        aria-hidden="true"
+                    />
                     <Check v-else class="size-6" aria-hidden="true" />
                 </span>
 
                 <h1 class="mt-4 text-xl font-bold tracking-tight">
-                    {{
-                        isCanceled
-                            ? 'This booking is canceled'
-                            : 'You are booked'
-                    }}
+                    {{ headline }}
                 </h1>
                 <p class="mt-1.5 text-sm text-muted-foreground">
-                    {{
-                        isCanceled
-                            ? 'Nothing is on the calendar any more.'
-                            : 'A calendar invitation is on its way to your inbox.'
-                    }}
+                    {{ subline }}
                 </p>
             </div>
 

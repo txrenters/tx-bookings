@@ -28,6 +28,16 @@ class SaveEventType
                 $hostIds = [];
             }
 
+            // Validation only vets the slug against live rows, but trashed
+            // event types still occupy the unique index on (team_id, slug).
+            if (isset($attributes['slug'])) {
+                $attributes['slug'] = EventType::generateUniqueSlug(
+                    $attributes['slug'],
+                    $eventType->team_id ?? $team->id,
+                    $eventType?->id,
+                );
+            }
+
             if ($eventType === null) {
                 $eventType = new EventType($attributes);
                 $eventType->team_id = $team->id;

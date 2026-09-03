@@ -11,4 +11,6 @@ export type NavItem = {
     href: NonNullable<InertiaLinkProps['href']>;
     icon?: LucideIcon;
     isActive?: boolean;
+    /** Highlight the item for every URL under this path, not just an exact match. */
+    activePrefix?: string;
 };

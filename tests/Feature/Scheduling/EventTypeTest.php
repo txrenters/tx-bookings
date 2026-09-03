@@ -2,11 +2,17 @@
 
 use App\Enums\EventTypeKind;
 use App\Enums\TeamRole;
+use App\Http\Middleware\HandleInertiaRequests;
+use App\Models\ActivityLog;
 use App\Models\AvailabilitySchedule;
+use App\Models\Booking;
 use App\Models\EventType;
 use App\Models\Group;
 use App\Models\Team;
 use App\Models\User;
+use Carbon\CarbonImmutable;
+use Illuminate\Testing\TestResponse;
+use Tests\TestCase;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
@@ -120,6 +126,19 @@ test('force deleting an event type leaves its slug alone', function () {
     expect(EventType::withTrashed()->where('slug', 'discovery-call')->exists())->toBeFalse();
 });
 
+test('an event type keeps its own slug on update', function () {
+    $eventType = EventType::factory()->ownedBy($this->user)->create(['slug' => 'discovery-call']);
+
+    $this->actingAs($this->user)
+        ->patch(route('scheduling.update', [
+            'current_team' => $this->team->slug,
+            'event_type' => $eventType->slug,
+        ]), eventTypePayload())
+        ->assertSessionHasNoErrors();
+
+    expect($eventType->fresh()->slug)->toBe('discovery-call');
+});
+
 test('reserved slugs are rejected', function () {
     $this->actingAs($this->user)
         ->post(route('scheduling.store', ['current_team' => $this->team->slug]), eventTypePayload(['slug' => 'dashboard']))
@@ -204,6 +223,26 @@ test('updating replaces the question set', function () {
     expect($questions)->toHaveCount(1)
         ->and($questions->first()->id)->toBe($kept->id)
         ->and($questions->first()->label)->toBe('Company name');
+});
+
+test('requires confirmation round-trips through the editor', function () {
+    $eventType = EventType::factory()->ownedBy($this->user)->create(['slug' => 'discovery-call']);
+
+    $this->actingAs($this->user)
+        ->patch(route('scheduling.update', [
+            'current_team' => $this->team->slug,
+            'event_type' => $eventType->slug,
+        ]), eventTypePayload(['requires_confirmation' => true]))
+        ->assertSessionHasNoErrors();
+
+    expect($eventType->fresh()->requires_confirmation)->toBeTrue();
+
+    $this->actingAs($this->user)
+        ->get(route('scheduling.edit', [
+            'current_team' => $this->team->slug,
+            'event_type' => $eventType->slug,
+        ]))
+        ->assertInertia(fn ($page) => $page->where('eventType.requiresConfirmation', true));
 });
 
 test('a member of another team cannot edit an event type', function () {
@@ -496,4 +535,286 @@ test('a one-on-one always has a single seat', function () {
 
     // Seats only mean something for group events.
     expect(EventType::first()->seats())->toBe(1);
+});
+
+test('an event type can be disabled and enabled from the list', function () {
+    $eventType = EventType::factory()->ownedBy($this->user)->create(['slug' => 'discovery-call']);
+    $indexUrl = route('scheduling.index', ['current_team' => $this->team->slug]);
+    $toggleUrl = route('scheduling.active.update', [
+        'current_team' => $this->team->slug,
+        'event_type' => $eventType->slug,
+    ]);
+
+    $this->actingAs($this->user)
+        ->from($indexUrl)
+        ->patch($toggleUrl, ['is_active' => false])
+        ->assertRedirect($indexUrl);
+
+    expect($eventType->fresh()->is_active)->toBeFalse();
+
+    $log = ActivityLog::where('event', 'event_type.updated')->latest('id')->first();
+
+    expect($log->description)->toContain('Disabled')
+        ->and($log->properties['isActive'])->toBeFalse();
+
+    $this->actingAs($this->user)
+        ->from($indexUrl)
+        ->patch($toggleUrl, ['is_active' => true]);
+
+    expect($eventType->fresh()->is_active)->toBeTrue();
+});
+
+test('the active flag is validated', function () {
+    $eventType = EventType::factory()->ownedBy($this->user)->create(['slug' => 'discovery-call']);
+
+    $this->actingAs($this->user)
+        ->from(route('scheduling.index', ['current_team' => $this->team->slug]))
+        ->patch(route('scheduling.active.update', [
+            'current_team' => $this->team->slug,
+            'event_type' => $eventType->slug,
+        ]), ['is_active' => 'banana'])
+        ->assertSessionHasErrors('is_active');
+
+    expect($eventType->fresh()->is_active)->toBeTrue();
+});
+
+test('a plain member cannot disable or duplicate a colleagues event type', function () {
+    $team = Team::factory()->create();
+    $member = User::factory()->create();
+
+    $team->members()->attach($this->user, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($member, ['role' => TeamRole::Member->value]);
+    $member->switchTeam($team);
+
+    $eventType = EventType::factory()->create(['team_id' => $team->id, 'user_id' => $this->user->id]);
+
+    $this->actingAs($member)
+        ->patch(route('scheduling.active.update', [
+            'current_team' => $team->slug,
+            'event_type' => $eventType->slug,
+        ]), ['is_active' => false])
+        ->assertForbidden();
+
+    $this->actingAs($member)
+        ->post(route('scheduling.duplicate', [
+            'current_team' => $team->slug,
+            'event_type' => $eventType->slug,
+        ]))
+        ->assertForbidden();
+
+    expect($eventType->fresh()->is_active)->toBeTrue()
+        ->and(EventType::count())->toBe(1);
+});
+
+test('the toggle and duplicate resolve the slug within the current team only', function () {
+    $otherOwner = User::factory()->create();
+    $foreign = EventType::factory()->ownedBy($otherOwner)->create(['slug' => 'foreign-call']);
+
+    $this->actingAs($this->user)
+        ->patch(route('scheduling.active.update', [
+            'current_team' => $this->team->slug,
+            'event_type' => $foreign->slug,
+        ]), ['is_active' => false])
+        ->assertNotFound();
+
+    $this->actingAs($this->user)
+        ->post(route('scheduling.duplicate', [
+            'current_team' => $this->team->slug,
+            'event_type' => $foreign->slug,
+        ]))
+        ->assertNotFound();
+});
+
+test('an event type can be duplicated', function () {
+    $eventType = EventType::factory()->ownedBy($this->user)->create([
+        'name' => 'Discovery call',
+        'slug' => 'discovery-call',
+        'duration_minutes' => 45,
+    ]);
+
+    $this->actingAs($this->user)
+        ->post(route('scheduling.duplicate', [
+            'current_team' => $this->team->slug,
+            'event_type' => $eventType->slug,
+        ]))
+        ->assertRedirect(route('scheduling.index', ['current_team' => $this->team->slug]));
+
+    $copy = EventType::where('slug', 'discovery-call-2')->first();
+
+    expect(EventType::count())->toBe(2)
+        ->and($copy)->not->toBeNull()
+        ->and($copy->name)->toBe('Discovery call (copy)')
+        ->and($copy->kind)->toBe($eventType->kind)
+        ->and($copy->duration_minutes)->toBe(45)
+        ->and($copy->user_id)->toBe($this->user->id)
+        ->and($copy->team_id)->toBe($this->team->id)
+        ->and($copy->is_active)->toBeTrue();
+
+    expect(ActivityLog::where('event', 'event_type.duplicated')->exists())->toBeTrue();
+});
+
+test('a duplicate copies questions and the host pool', function () {
+    $second = User::factory()->create();
+    $this->team->members()->attach($second, ['role' => TeamRole::Member->value]);
+
+    $schedule = AvailabilitySchedule::factory()->for($this->user)->create();
+
+    $eventType = EventType::factory()->ownedBy($this->user)->roundRobin()->create(['slug' => 'discovery-call']);
+    $eventType->hosts()->attach($second->id, ['priority' => 0, 'availability_schedule_id' => $schedule->id]);
+    $eventType->hosts()->attach($this->user->id, ['priority' => 1]);
+    $eventType->questions()->create(['type' => 'text', 'label' => 'Company', 'is_required' => true, 'position' => 0]);
+    $eventType->questions()->create(['type' => 'select', 'label' => 'Size', 'options' => ['1-10', '11-50'], 'position' => 1]);
+
+    $this->actingAs($this->user)
+        ->post(route('scheduling.duplicate', [
+            'current_team' => $this->team->slug,
+            'event_type' => $eventType->slug,
+        ]));
+
+    $copy = EventType::where('slug', 'discovery-call-2')->first();
+    $hosts = $copy->hosts;
+    $questions = $copy->questions;
+
+    expect($hosts->pluck('id')->all())->toBe([$second->id, $this->user->id])
+        ->and($hosts->first()->pivot->priority)->toBe(0)
+        ->and($hosts->first()->pivot->availability_schedule_id)->toBe($schedule->id)
+        ->and($questions)->toHaveCount(2)
+        ->and($questions->first()->label)->toBe('Company')
+        ->and($questions->first()->is_required)->toBeTrue()
+        ->and($questions->last()->options)->toBe(['1-10', '11-50']);
+});
+
+test('a duplicated slug steps past legacy soft-deleted event types', function () {
+    $eventType = EventType::factory()->ownedBy($this->user)->create(['slug' => 'discovery-call']);
+
+    // Rows trashed before slugs were released on delete still hold their
+    // original slug in the unique index, so recreate that state directly.
+    $trashed = EventType::factory()->ownedBy($this->user)->create(['slug' => 'placeholder']);
+    $trashed->delete();
+    EventType::withTrashed()->whereKey($trashed->id)->update(['slug' => 'discovery-call-2']);
+
+    $this->actingAs($this->user)
+        ->post(route('scheduling.duplicate', [
+            'current_team' => $this->team->slug,
+            'event_type' => $eventType->slug,
+        ]));
+
+    expect(EventType::where('slug', 'discovery-call-3')->exists())->toBeTrue();
+});
+
+/**
+ * Resolve the scheduling page's deferred calendar props via a partial reload.
+ */
+function schedulingCalendarProps(TestCase $test, Team $team, array $query = []): TestResponse
+{
+    return $test->withHeaders([
+        'X-Inertia' => 'true',
+        'X-Inertia-Partial-Data' => 'calendarMonth,calendarBookings',
+        'X-Inertia-Partial-Component' => 'scheduling/event-types/Index',
+        'X-Inertia-Version' => (new HandleInertiaRequests)->version(request()),
+    ])->get(route('scheduling.index', ['current_team' => $team->slug, ...$query]));
+}
+
+test('the calendar groups the months hosted meetings by day in the users timezone', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-09-01 08:00:00', 'UTC'));
+
+    $user = User::factory()->create(['timezone' => 'America/Chicago']);
+    $eventType = EventType::factory()->ownedBy($user)->create(['name' => 'Interview']);
+
+    // 7:30 pm in Chicago on the 10th, although UTC has rolled to the 11th.
+    Booking::factory()->create([
+        'event_type_id' => $eventType->id,
+        'starts_at' => CarbonImmutable::parse('2026-09-11 00:30:00', 'UTC'),
+        'ends_at' => CarbonImmutable::parse('2026-09-11 01:00:00', 'UTC'),
+    ]);
+
+    Booking::factory()->pending()->create([
+        'event_type_id' => $eventType->id,
+        'starts_at' => CarbonImmutable::parse('2026-09-15 14:00:00', 'UTC'),
+        'ends_at' => CarbonImmutable::parse('2026-09-15 14:30:00', 'UTC'),
+    ]);
+
+    $response = schedulingCalendarProps($this->actingAs($user), $user->currentTeam)->assertOk();
+
+    $bookings = $response->json('props.calendarBookings');
+
+    expect($response->json('props.calendarMonth'))->toBe('2026-09')
+        ->and($bookings['2026-09-10'])->toHaveCount(1)
+        ->and($bookings['2026-09-10'][0]['eventTypeName'])->toBe('Interview')
+        ->and($bookings['2026-09-10'][0]['timeLabel'])->toBe('7:30 pm')
+        ->and($bookings['2026-09-10'][0]['endTimeLabel'])->toBe('8:00 pm')
+        ->and($bookings['2026-09-15'][0]['status'])->toBe('pending');
+});
+
+test('the calendar leaves out other hosts, other teams, and canceled meetings', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-09-01 08:00:00', 'UTC'));
+
+    $colleague = User::factory()->create();
+    $this->team->members()->attach($colleague, ['role' => TeamRole::Member->value]);
+
+    $mine = EventType::factory()->ownedBy($this->user)->create();
+    Booking::factory()->create([
+        'event_type_id' => $mine->id,
+        'starts_at' => CarbonImmutable::parse('2026-09-08 15:00:00', 'UTC'),
+        'ends_at' => CarbonImmutable::parse('2026-09-08 15:30:00', 'UTC'),
+    ]);
+    Booking::factory()->canceled()->create([
+        'event_type_id' => $mine->id,
+        'starts_at' => CarbonImmutable::parse('2026-09-09 15:00:00', 'UTC'),
+        'ends_at' => CarbonImmutable::parse('2026-09-09 15:30:00', 'UTC'),
+    ]);
+
+    $colleagues = EventType::factory()->create(['team_id' => $this->team->id, 'user_id' => $colleague->id]);
+    Booking::factory()->create([
+        'event_type_id' => $colleagues->id,
+        'starts_at' => CarbonImmutable::parse('2026-09-10 15:00:00', 'UTC'),
+        'ends_at' => CarbonImmutable::parse('2026-09-10 15:30:00', 'UTC'),
+    ]);
+
+    $elsewhere = EventType::factory()->ownedBy(User::factory()->create())->create();
+    Booking::factory()->create([
+        'event_type_id' => $elsewhere->id,
+        'starts_at' => CarbonImmutable::parse('2026-09-11 15:00:00', 'UTC'),
+        'ends_at' => CarbonImmutable::parse('2026-09-11 15:30:00', 'UTC'),
+    ]);
+
+    $bookings = schedulingCalendarProps($this->actingAs($this->user), $this->team)
+        ->assertOk()
+        ->json('props.calendarBookings');
+
+    expect($bookings)->toHaveCount(1)
+        ->and($bookings['2026-09-08'])->toHaveCount(1);
+});
+
+test('the calendar can page to another month', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-09-01 08:00:00', 'UTC'));
+
+    $eventType = EventType::factory()->ownedBy($this->user)->create();
+    Booking::factory()->create([
+        'event_type_id' => $eventType->id,
+        'starts_at' => CarbonImmutable::parse('2026-09-08 15:00:00', 'UTC'),
+        'ends_at' => CarbonImmutable::parse('2026-09-08 15:30:00', 'UTC'),
+    ]);
+    Booking::factory()->create([
+        'event_type_id' => $eventType->id,
+        'starts_at' => CarbonImmutable::parse('2026-10-20 15:00:00', 'UTC'),
+        'ends_at' => CarbonImmutable::parse('2026-10-20 15:30:00', 'UTC'),
+    ]);
+
+    $response = schedulingCalendarProps($this->actingAs($this->user), $this->team, ['calendarMonth' => '2026-10'])
+        ->assertOk();
+
+    $bookings = $response->json('props.calendarBookings');
+
+    expect($response->json('props.calendarMonth'))->toBe('2026-10')
+        ->and($bookings)->toHaveCount(1)
+        ->and($bookings['2026-10-20'])->toHaveCount(1);
+});
+
+test('a malformed calendar month falls back to the current month', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-09-15 08:00:00', 'UTC'));
+
+    schedulingCalendarProps($this->actingAs($this->user), $this->team, ['calendarMonth' => 'nope-13'])
+        ->assertOk()
+        ->assertJsonPath('props.calendarMonth', '2026-09');
 });

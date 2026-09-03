@@ -8,6 +8,7 @@ import {
     History,
     LayoutGrid,
     ScrollText,
+    Settings,
     Users,
 } from '@lucide/vue';
 import { computed } from 'vue';
@@ -31,6 +32,7 @@ import { index as availabilityIndex } from '@/routes/availability';
 import { index as groupsIndex } from '@/routes/groups';
 import { index as logsIndex } from '@/routes/logs';
 import { index as meetingsIndex } from '@/routes/meetings';
+import { edit as profileSettings } from '@/routes/profile';
 import { index as schedulingIndex } from '@/routes/scheduling';
 import type { NavItem } from '@/types';
 
@@ -42,7 +44,7 @@ const dashboardUrl = computed(() =>
     page.props.currentTeam ? dashboard(page.props.currentTeam.slug).url : '/',
 );
 
-const mainNavItems = computed<NavItem[]>(() => [
+const workspaceNavItems = computed<NavItem[]>(() => [
     {
         title: 'Dashboard',
         href: dashboardUrl.value,
@@ -63,15 +65,27 @@ const mainNavItems = computed<NavItem[]>(() => [
         href: availabilityIndex(teamSlug.value),
         icon: Clock,
     },
+]);
+
+const teamNavItems = computed<NavItem[]>(() => [
     {
         title: 'Teams',
         href: groupsIndex(teamSlug.value),
         icon: Users,
     },
+]);
+
+const otherNavItems = computed<NavItem[]>(() => [
     {
         title: 'Activity',
         href: activityIndex(teamSlug.value),
         icon: History,
+    },
+    {
+        title: 'Settings',
+        href: profileSettings(),
+        icon: Settings,
+        activePrefix: '/settings',
     },
 ]);
 
@@ -125,7 +139,9 @@ const footerNavItems = computed<NavItem[]>(() => {
         </SidebarHeader>
 
         <SidebarContent>
-            <NavMain :items="mainNavItems" />
+            <NavMain :items="workspaceNavItems" label="Workspace" />
+            <NavMain :items="teamNavItems" label="Team" />
+            <NavMain :items="otherNavItems" label="Other" />
         </SidebarContent>
 
         <SidebarFooter>

@@ -261,6 +261,30 @@ class EventType extends Model
     }
 
     /**
+     * Get a slug that is free within the team, suffixing past any taken one.
+     *
+     * The database unique index on (team_id, slug) counts soft-deleted rows,
+     * so trashed event types are collisions too even though validation
+     * ignores them.
+     */
+    public static function generateUniqueSlug(string $slug, int $teamId, ?int $ignoreId = null): string
+    {
+        $base = $slug;
+        $suffix = 1;
+
+        while (static::withTrashed()
+            ->where('team_id', $teamId)
+            ->where('slug', $slug)
+            ->when($ignoreId, fn ($query) => $query->whereKeyNot($ignoreId))
+            ->exists()
+        ) {
+            $slug = "{$base}-".(++$suffix);
+        }
+
+        return $slug;
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>

@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { useForm } from '@inertiajs/vue3';
+import { router, useForm } from '@inertiajs/vue3';
 import {
+    Check,
+    Clock,
     FileText,
     Globe,
     Mail,
@@ -19,6 +21,7 @@ import {
     SheetTitle,
 } from '@/components/ui/sheet';
 import { Textarea } from '@/components/ui/textarea';
+import { approve } from '@/routes/meetings';
 import { update as updateNotes } from '@/routes/meetings/notes';
 
 type Meeting = {
@@ -42,6 +45,7 @@ type Meeting = {
     guests: string[];
     answers: Array<{ label: string; answer: string | null }>;
     canCancel: boolean;
+    canApprove: boolean;
     rescheduleUrl: string;
     cancellationReason: string | null;
 };
@@ -56,6 +60,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'cancel'): void;
+    (e: 'decline'): void;
 }>();
 
 const tab = ref<'details' | 'notes'>('details');
@@ -84,6 +89,21 @@ const saveNotes = () => {
         { preserveScroll: true },
     );
 };
+
+const approveMeeting = () => {
+    if (!props.meeting) {
+        return;
+    }
+
+    router.post(
+        approve({
+            current_team: props.teamSlug,
+            booking: props.meeting.uid,
+        }).url,
+        {},
+        { preserveScroll: true, onSuccess: () => emit('close') },
+    );
+};
 </script>
 
 <template>
@@ -99,7 +119,13 @@ const saveNotes = () => {
         >
             <SheetHeader class="gap-1">
                 <p
-                    v-if="meeting.status !== 'confirmed'"
+                    v-if="meeting.status === 'pending'"
+                    class="flex items-center gap-1.5 text-sm text-muted-foreground"
+                >
+                    <Clock class="size-3.5" /> Pending approval
+                </p>
+                <p
+                    v-else-if="meeting.status !== 'confirmed'"
                     class="flex items-center gap-1.5 text-sm text-muted-foreground"
                 >
                     <RotateCcw class="size-3.5" /> {{ meeting.statusLabel }}
@@ -113,6 +139,26 @@ const saveNotes = () => {
                 <p class="text-sm text-muted-foreground">
                     {{ meeting.timeWithZone }}
                 </p>
+
+                <div v-if="meeting.canApprove" class="mt-3 flex gap-2">
+                    <Button
+                        size="sm"
+                        class="rounded-full"
+                        data-test="panel-approve"
+                        @click="approveMeeting"
+                    >
+                        <Check class="size-3.5" /> Approve
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        class="rounded-full text-destructive hover:text-destructive"
+                        data-test="panel-decline"
+                        @click="emit('decline')"
+                    >
+                        <Trash2 class="size-3.5" /> Decline
+                    </Button>
+                </div>
 
                 <div v-if="meeting.canCancel" class="mt-3 flex gap-2">
                     <Button
