@@ -12,7 +12,7 @@ defineProps<Props>();
 </script>
 
 <template>
-    <div data-test="team-invitation-alert">
+    <div class="mb-6" data-test="team-invitation-alert">
         <Alert
             class="border-primary/25 bg-accent text-accent-foreground [&>svg]:text-accent-foreground"
         >
