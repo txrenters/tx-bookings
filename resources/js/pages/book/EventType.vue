@@ -213,7 +213,9 @@ const submit = () => {
                 class="grid overflow-hidden rounded-2xl border border-border bg-card shadow-raised lg:grid-cols-[21rem_minmax(0,1fr)]"
             >
                 <!-- Event details rail. -->
-                <aside class="border-b border-border p-6 sm:p-8 lg:border-r lg:border-b-0">
+                <aside
+                    class="border-b border-border p-6 sm:p-8 lg:border-r lg:border-b-0"
+                >
                     <a
                         :href="page.url"
                         class="inline-flex items-center gap-1.5 rounded-md text-sm font-medium text-muted-foreground transition-colors duration-200 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
@@ -307,7 +309,9 @@ const submit = () => {
                             class="mt-0.5 size-4 shrink-0"
                             aria-hidden="true"
                         />
-                        <p>You are picking a new time for an existing booking.</p>
+                        <p>
+                            You are picking a new time for an existing booking.
+                        </p>
                     </div>
                 </aside>
 
@@ -403,21 +407,27 @@ const submit = () => {
                                         class="mx-auto size-5 text-muted-foreground"
                                         aria-hidden="true"
                                     />
-                                    <p class="mt-2 text-sm text-muted-foreground">
+                                    <p
+                                        class="mt-2 text-sm text-muted-foreground"
+                                    >
                                         Pick a highlighted date to see the open
                                         times.
                                     </p>
                                 </div>
 
                                 <div
-                                    v-else-if="slotsForSelectedDate.length === 0"
+                                    v-else-if="
+                                        slotsForSelectedDate.length === 0
+                                    "
                                     class="rounded-lg border border-dashed border-border px-4 py-8 text-center"
                                 >
                                     <X
                                         class="mx-auto size-5 text-muted-foreground"
                                         aria-hidden="true"
                                     />
-                                    <p class="mt-2 text-sm text-muted-foreground">
+                                    <p
+                                        class="mt-2 text-sm text-muted-foreground"
+                                    >
                                         No times left on this date. Try another
                                         highlighted day.
                                     </p>
@@ -458,7 +468,9 @@ const submit = () => {
                                                 slot.label
                                             }}</span>
                                             <span
-                                                v-if="eventType.kind === 'group'"
+                                                v-if="
+                                                    eventType.kind === 'group'
+                                                "
                                                 class="ml-2 text-xs font-normal opacity-80"
                                                 data-numeric
                                             >
@@ -499,7 +511,11 @@ const submit = () => {
                             tabindex="-1"
                             class="mt-4 text-lg font-bold tracking-tight focus-visible:outline-none"
                         >
-                            {{ isRescheduling ? 'Confirm new time' : 'Enter Details' }}
+                            {{
+                                isRescheduling
+                                    ? 'Confirm new time'
+                                    : 'Enter Details'
+                            }}
                         </h2>
 
                         <div
@@ -539,7 +555,11 @@ const submit = () => {
                             <div class="grid gap-2">
                                 <Label for="name">
                                     Name
-                                    <span class="text-destructive" aria-hidden="true">*</span>
+                                    <span
+                                        class="text-destructive"
+                                        aria-hidden="true"
+                                        >*</span
+                                    >
                                 </Label>
                                 <Input
                                     id="name"
@@ -555,7 +575,11 @@ const submit = () => {
                             <div class="grid gap-2">
                                 <Label for="email">
                                     Email
-                                    <span class="text-destructive" aria-hidden="true">*</span>
+                                    <span
+                                        class="text-destructive"
+                                        aria-hidden="true"
+                                        >*</span
+                                    >
                                 </Label>
                                 <Input
                                     id="email"
@@ -574,7 +598,9 @@ const submit = () => {
                                 v-if="eventType.needsInviteePhone"
                                 class="grid gap-2"
                             >
-                                <Label for="location_detail">Phone number</Label>
+                                <Label for="location_detail"
+                                    >Phone number</Label
+                                >
                                 <Input
                                     id="location_detail"
                                     v-model="form.location_detail"
@@ -664,7 +690,9 @@ const submit = () => {
                                     {{ question.helpText }}
                                 </p>
                                 <InputError
-                                    :message="errorFor(`answers.${question.id}`)"
+                                    :message="
+                                        errorFor(`answers.${question.id}`)
+                                    "
                                 />
                             </div>
 
@@ -710,7 +738,9 @@ const submit = () => {
                                     Guests get the same invite and calendar
                                     updates.
                                 </p>
-                                <InputError :message="guestError ?? undefined" />
+                                <InputError
+                                    :message="guestError ?? undefined"
+                                />
 
                                 <ul
                                     v-if="form.guests.length"
@@ -730,7 +760,9 @@ const submit = () => {
                                             type="button"
                                             class="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors duration-200 hover:bg-background hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                                             :aria-label="`Remove guest ${guest}`"
-                                            @click="form.guests.splice(index, 1)"
+                                            @click="
+                                                form.guests.splice(index, 1)
+                                            "
                                         >
                                             <X
                                                 class="size-3.5"

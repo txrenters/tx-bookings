@@ -64,24 +64,25 @@ class LogReader
             return [];
         }
 
-        return Collection::make($this->parse($this->tail($path)))
-            ->when(
-                filled($level) && $level !== 'all',
-                fn (Collection $entries) => $entries->filter(
-                    fn (array $entry) => strtolower($entry['level']) === strtolower((string) $level),
+        $entries = Collection::make($this->parse($this->tail($path)));
+
+        if (filled($level) && $level !== 'all') {
+            $entries = $entries->filter(
+                fn (array $entry) => strtolower($entry['level']) === strtolower((string) $level),
+            );
+        }
+
+        if (filled($search)) {
+            $entries = $entries->filter(
+                fn (array $entry) => Str::contains(
+                    $entry['message'].' '.($entry['context'] ?? ''),
+                    (string) $search,
+                    ignoreCase: true,
                 ),
-            )
-            ->when(
-                filled($search),
-                fn (Collection $entries) => $entries->filter(
-                    fn (array $entry) => Str::contains(
-                        $entry['message'].' '.($entry['context'] ?? ''),
-                        (string) $search,
-                        ignoreCase: true,
-                    ),
-                ),
-            )
-            ->reverse()
+            );
+        }
+
+        return $entries->reverse()
             ->take($this->maxEntries)
             ->values()
             ->all();

@@ -39,14 +39,18 @@ const highlights = [
                   The mark is a full-colour raster, so it needs a neutral chip
                   to sit on rather than the brand blue itself.
                 -->
-                <span class="flex size-9 items-center justify-center rounded-lg bg-card">
+                <span
+                    class="flex size-9 items-center justify-center rounded-lg bg-card"
+                >
                     <AppLogoIcon class="size-7" />
                 </span>
                 {{ name }}
             </Link>
 
             <div>
-                <p class="max-w-md text-2xl font-bold tracking-tight text-balance">
+                <p
+                    class="max-w-md text-2xl font-bold tracking-tight text-balance"
+                >
                     Stop emailing back and forth to find a time.
                 </p>
                 <ul class="mt-6 space-y-3">
@@ -70,10 +74,7 @@ const highlights = [
                 class="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]"
             >
                 <div class="flex flex-col space-y-2 text-center">
-                    <h1
-                        v-if="title"
-                        class="text-xl font-bold tracking-tight"
-                    >
+                    <h1 v-if="title" class="text-xl font-bold tracking-tight">
                         {{ title }}
                     </h1>
                     <p

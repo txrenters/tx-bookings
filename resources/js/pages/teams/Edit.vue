@@ -293,9 +293,7 @@ const submitProfile = () => {
                     >
                         Greets people at the top of your booking page.
                     </p>
-                    <InputError
-                        :message="profileForm.errors.welcome_message"
-                    />
+                    <InputError :message="profileForm.errors.welcome_message" />
                 </div>
 
                 <div class="grid gap-2">
@@ -541,9 +539,7 @@ const submitProfile = () => {
             <div
                 class="space-y-4 rounded-lg border border-destructive/25 bg-destructive/5 p-4"
             >
-                <div
-                    class="relative space-y-0.5 text-destructive"
-                >
+                <div class="relative space-y-0.5 text-destructive">
                     <p class="font-medium">Warning</p>
                     <p class="text-sm">
                         Please proceed with caution, this cannot be undone.

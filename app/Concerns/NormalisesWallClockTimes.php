@@ -36,6 +36,8 @@ trait NormalisesWallClockTimes
 
     /**
      * Normalise the start of the window.
+     *
+     * @return Attribute<string|null, mixed>
      */
     protected function startsAt(): Attribute
     {
@@ -46,6 +48,8 @@ trait NormalisesWallClockTimes
 
     /**
      * Normalise the end of the window.
+     *
+     * @return Attribute<string|null, mixed>
      */
     protected function endsAt(): Attribute
     {

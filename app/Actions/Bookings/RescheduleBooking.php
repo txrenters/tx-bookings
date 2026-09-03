@@ -70,7 +70,7 @@ class RescheduleBooking
         $this->activity->record(
             $replacement->team,
             'booking.rescheduled',
-            ($replacement->eventType?->name ?? 'A meeting').' with '.$replacement->name.' was moved',
+            ($replacement->eventType->name ?? 'A meeting').' with '.$replacement->name.' was moved',
             $replacement,
             [
                 'from' => $booking->starts_at->toIso8601String(),

@@ -68,6 +68,6 @@ class BookingConfirmed extends Notification implements ShouldQueue
      */
     protected function inAppBody(Booking $booking): string
     {
-        return $booking->name.' booked '.($booking->eventType?->name ?? 'a meeting').'.';
+        return $booking->name.' booked '.($booking->eventType->name ?? 'a meeting').'.';
     }
 }

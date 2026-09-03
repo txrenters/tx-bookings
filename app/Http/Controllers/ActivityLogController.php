@@ -56,7 +56,7 @@ class ActivityLogController extends Controller
                 'kind' => str($entry->event)->before('.')->toString(),
                 'description' => $entry->description,
                 // The stored name survives a rename or a deleted account.
-                'actorName' => $entry->user?->name ?? $entry->actor_name,
+                'actorName' => $entry->user->name ?? $entry->actor_name,
                 'isSystem' => $entry->user_id === null && $entry->actor_name === null,
                 'properties' => $entry->properties,
                 'at' => $entry->created_at->setTimezone($timezone)->isoFormat('D MMM YYYY, h:mm a'),

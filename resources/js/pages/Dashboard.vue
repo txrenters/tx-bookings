@@ -157,10 +157,7 @@ const statCards = computed(() => [
                             rel="noopener noreferrer"
                         >
                             Preview
-                            <ExternalLink
-                                class="size-4"
-                                aria-hidden="true"
-                            />
+                            <ExternalLink class="size-4" aria-hidden="true" />
                         </a>
                     </Button>
                 </div>

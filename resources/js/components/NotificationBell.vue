@@ -112,7 +112,11 @@ const markEveryRead = () => {
     const now = new Date().toISOString();
     notifications.value.forEach((item) => (item.readAt ??= now));
 
-    router.post(readAll().url, {}, { preserveScroll: true, preserveState: true });
+    router.post(
+        readAll().url,
+        {},
+        { preserveScroll: true, preserveState: true },
+    );
 };
 
 const dismiss = (notification: Notification) => {
@@ -201,7 +205,9 @@ const openMeeting = (notification: Notification) => {
                     <button
                         type="button"
                         class="flex w-full cursor-pointer items-start gap-3 py-3 pr-10 pl-4 text-left transition-colors duration-200 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:-outline-offset-2 focus-visible:outline-none"
-                        :class="notification.readAt === null ? 'bg-accent/40' : ''"
+                        :class="
+                            notification.readAt === null ? 'bg-accent/40' : ''
+                        "
                         @click="openMeeting(notification)"
                     >
                         <component

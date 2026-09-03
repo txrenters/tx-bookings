@@ -189,7 +189,10 @@ const onKeydown = (event: KeyboardEvent, date: string) => {
 <template>
     <div>
         <div class="mb-4 flex items-center justify-between gap-2">
-            <span class="text-base font-semibold tracking-tight" aria-live="polite">
+            <span
+                class="text-base font-semibold tracking-tight"
+                aria-live="polite"
+            >
                 {{ monthLabel }}
             </span>
             <div class="flex items-center gap-1">

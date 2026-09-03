@@ -85,7 +85,7 @@ class CreateBooking
             $this->activity->record(
                 $booking->team,
                 'booking.created',
-                $booking->name.' booked '.($booking->eventType?->name ?? 'a meeting'),
+                $booking->name.' booked '.($booking->eventType->name ?? 'a meeting'),
                 $booking,
                 ['startsAt' => $booking->starts_at->toIso8601String(), 'email' => $booking->email],
             );

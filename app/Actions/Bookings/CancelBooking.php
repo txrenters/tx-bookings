@@ -43,7 +43,7 @@ class CancelBooking
         $this->activity->record(
             $booking->team,
             'booking.canceled',
-            ($booking->eventType?->name ?? 'A meeting').' with '.$booking->name.' was canceled',
+            ($booking->eventType->name ?? 'A meeting').' with '.$booking->name.' was canceled',
             $booking,
             ['canceledBy' => $canceledBy, 'reason' => $reason],
         );

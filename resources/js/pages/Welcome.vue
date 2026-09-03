@@ -71,7 +71,11 @@ const mockSlots = ['9:00 am', '9:30 am', '10:00 am', '11:30 am'];
                     <Button v-if="page.props.auth.user" as-child>
                         <Link :href="dashboardUrl">Dashboard</Link>
                     </Button>
-                    <Button v-else class="cursor-pointer font-semibold" as-child>
+                    <Button
+                        v-else
+                        class="cursor-pointer font-semibold"
+                        as-child
+                    >
                         <Link :href="login()">Log in</Link>
                     </Button>
                 </nav>
@@ -80,7 +84,9 @@ const mockSlots = ['9:00 am', '9:30 am', '10:00 am', '11:30 am'];
 
         <main>
             <!-- Hero -->
-            <section class="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
+            <section
+                class="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 sm:py-24"
+            >
                 <div class="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
                     <div>
                         <p
@@ -162,7 +168,9 @@ const mockSlots = ['9:00 am', '9:30 am', '10:00 am', '11:30 am'];
                         class="rounded-2xl border border-border bg-card p-5 shadow-raised sm:p-6"
                         aria-hidden="true"
                     >
-                        <div class="flex items-center gap-3 border-b border-border pb-4">
+                        <div
+                            class="flex items-center gap-3 border-b border-border pb-4"
+                        >
                             <AppLogoIcon class="size-9" />
                             <div>
                                 <p class="text-sm font-semibold">
@@ -204,9 +212,9 @@ const mockSlots = ['9:00 am', '9:30 am', '10:00 am', '11:30 am'];
                                             'flex aspect-square items-center justify-center rounded-full',
                                             day === 12
                                                 ? 'bg-primary font-semibold text-primary-foreground'
-                                                : [4, 5, 11, 18, 19, 25].includes(
-                                                        day,
-                                                    )
+                                                : [
+                                                        4, 5, 11, 18, 19, 25,
+                                                    ].includes(day)
                                                   ? 'bg-accent font-semibold text-accent-foreground'
                                                   : 'text-muted-foreground/50',
                                         ]"
@@ -243,7 +251,9 @@ const mockSlots = ['9:00 am', '9:30 am', '10:00 am', '11:30 am'];
                 class="border-y border-border bg-card"
                 aria-labelledby="features-heading"
             >
-                <div class="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
+                <div
+                    class="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 sm:py-20"
+                >
                     <h2
                         id="features-heading"
                         class="text-2xl font-bold tracking-tight text-balance sm:text-3xl"
@@ -276,11 +286,16 @@ const mockSlots = ['9:00 am', '9:30 am', '10:00 am', '11:30 am'];
             </section>
 
             <!-- Closing CTA -->
-            <section class="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
+            <section
+                class="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 sm:py-24"
+            >
                 <div
                     class="rounded-2xl bg-primary px-6 py-12 text-center text-primary-foreground sm:px-12"
                 >
-                    <Clock class="mx-auto size-7 opacity-80" aria-hidden="true" />
+                    <Clock
+                        class="mx-auto size-7 opacity-80"
+                        aria-hidden="true"
+                    />
                     <h2
                         class="mt-4 text-2xl font-bold tracking-tight text-balance sm:text-3xl"
                     >

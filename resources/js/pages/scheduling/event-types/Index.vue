@@ -159,12 +159,15 @@ const creatingKind = ref<string | null>(null);
   would always come back empty.
 */
 const filterableKinds = computed(() => {
-    const present = new Set(props.eventTypes.map((eventType) => eventType.kind));
+    const present = new Set(
+        props.eventTypes.map((eventType) => eventType.kind),
+    );
 
     return props.kinds.filter(
         (kind) =>
             present.has(kind.value) ||
-            (!kind.requiresTeam || !props.isPersonalTeam),
+            !kind.requiresTeam ||
+            !props.isPersonalTeam,
     );
 });
 
