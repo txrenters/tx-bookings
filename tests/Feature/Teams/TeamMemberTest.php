@@ -127,3 +127,64 @@ test('removed member current team is set to personal team', function () {
 
     expect($member->fresh()->current_team_id)->toEqual($personalTeam->id);
 });
+
+/*
+ * personalTeam() is nullable, and is null for every account CreateTeamUser or
+ * the invitation join flow made: both drop the user straight into an existing
+ * organization and create no personal one. Removing such a member used to pass
+ * that null to switchTeam() and 500 the request.
+ */
+test('a member with no personal organization can be removed', function () {
+    $owner = User::factory()->create();
+    $team = Team::factory()->create();
+
+    $member = User::factory()->create();
+    $member->teams()->detach();
+    $team->members()->attach($member, ['role' => TeamRole::Member->value]);
+    $member->forceFill(['current_team_id' => $team->id])->save();
+
+    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+
+    $this->actingAs($owner)
+        ->delete(route('teams.members.destroy', [$team, $member]))
+        ->assertRedirect(route('teams.edit', $team));
+
+    expect($member->fresh()->belongsToTeam($team))->toBeFalse()
+        ->and($member->fresh()->current_team_id)->toBeNull();
+});
+
+test('a removed member falls back to another organization they still belong to', function () {
+    $owner = User::factory()->create();
+    $team = Team::factory()->create();
+    $other = Team::factory()->create();
+
+    $member = User::factory()->create();
+    $member->teams()->detach();
+    $team->members()->attach($member, ['role' => TeamRole::Member->value]);
+    $other->members()->attach($member, ['role' => TeamRole::Member->value]);
+    $member->forceFill(['current_team_id' => $team->id])->save();
+
+    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+
+    $this->actingAs($owner)
+        ->delete(route('teams.members.destroy', [$team, $member]));
+
+    expect($member->fresh()->current_team_id)->toBe($other->id);
+});
+
+test('a removed member with a personal organization lands on it', function () {
+    $owner = User::factory()->create();
+    $team = Team::factory()->create();
+
+    $member = User::factory()->create();
+    $personal = $member->personalTeam();
+    $team->members()->attach($member, ['role' => TeamRole::Member->value]);
+    $member->forceFill(['current_team_id' => $team->id])->save();
+
+    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+
+    $this->actingAs($owner)
+        ->delete(route('teams.members.destroy', [$team, $member]));
+
+    expect($member->fresh()->current_team_id)->toBe($personal->id);
+});

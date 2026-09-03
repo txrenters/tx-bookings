@@ -11,9 +11,10 @@ use App\Models\User;
 /**
  * Wall clock columns must always land as H:i:s.
  *
- * The UI posts "09:00", Calendly returns "09:00", and SQLite stores a time
- * column verbatim — so an un-normalised writer produced values that crashed
- * the scheduling page when AvailabilitySchedule::summary() parsed them.
+ * The UI posts "09:00" and Calendly returns "09:00", so an un-normalised writer
+ * produced values that crashed the scheduling page when
+ * AvailabilitySchedule::summary() parsed them. These assert the model
+ * normalises on write, rather than relying on the database column to do it.
  */
 test('a rule written with H:i is stored as H:i:s', function () {
     $schedule = AvailabilitySchedule::factory()->for(User::factory())->create();

@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 /**
  * @property int $id
@@ -87,6 +88,38 @@ class EventType extends Model
         'is_hidden' => false,
         'requires_confirmation' => false,
     ];
+
+    /**
+     * Bootstrap the model and its traits.
+     */
+    protected static function boot(): void
+    {
+        parent::boot();
+
+        /*
+         * Release the slug when an event type is soft deleted.
+         *
+         * The unique index is on (team_id, slug) alone, while
+         * SaveEventTypeRequest scopes its uniqueness rule with
+         * whereNull('deleted_at') -- so a deleted event type is invisible to
+         * validation but still occupies the index. Creating another with the
+         * same name then passed validation and died on INSERT with a 1062,
+         * surfacing as a bare 500 on save.
+         *
+         * Renaming here honours what the validation rule already intends:
+         * deleting an event type frees its name for reuse. The row keeps its id,
+         * so bookings that reference it are unaffected, and its public URL is
+         * dead either way once deleted.
+         */
+        static::deleting(function (EventType $eventType) {
+            if ($eventType->isForceDeleting()) {
+                return;
+            }
+
+            $eventType->slug = Str::limit($eventType->slug, 200, '').'-deleted-'.$eventType->id;
+            $eventType->saveQuietly();
+        });
+    }
 
     /**
      * Get the team the event type belongs to.

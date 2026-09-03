@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Booking;
 
 use App\Http\Controllers\Controller;
 use App\Models\EventType;
+use App\Models\Group;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\Scheduling\AvailabilityEngine;
@@ -56,6 +57,43 @@ class BookingPageController extends Controller
     }
 
     /**
+     * Display one team's own landing page.
+     *
+     * Rendered with the same component as the organization page: it is the
+     * same list of event types with a different heading, and a second component
+     * would only be a copy to keep in step. The `parent` prop is what tells it
+     * to offer a way back up to the organization.
+     */
+    protected function teamPage(User|Team $owner, string $page, Group $group): Response
+    {
+        $eventTypes = $this->pages->eventTypesForGroup($group);
+
+        return Inertia::render('book/Page', [
+            'page' => [
+                'slug' => $page,
+                'name' => $group->name,
+                'welcomeMessage' => $group->description,
+                'isTeam' => true,
+                'logoUrl' => $this->pages->logoUrl($owner),
+                'websiteUrl' => $this->pages->websiteUrl($owner),
+            ],
+            'parent' => [
+                'name' => $this->pages->name($owner),
+                'url' => route('book.page', ['page' => $page]),
+            ],
+            'eventTypes' => $eventTypes->map(fn (EventType $eventType) => [
+                'slug' => $eventType->slug,
+                'name' => $eventType->name,
+                'description' => $eventType->description,
+                'color' => $eventType->color,
+                'durationMinutes' => $eventType->duration_minutes,
+                'locationLabel' => $eventType->location_type->label(),
+                'url' => route('book.event-type', ['page' => $page, 'eventType' => $eventType->slug]),
+            ]),
+        ]);
+    }
+
+    /**
      * Display the slot picker for a single event type.
      */
     public function eventType(Request $request, string $page, string $eventType): Response
@@ -66,7 +104,19 @@ class BookingPageController extends Controller
 
         $type = $this->pages->eventType($owner, $eventType);
 
-        abort_if($type === null, 404);
+        /*
+         * A team's landing page shares the /book/{page}/{slug} shape with an
+         * event type, so the slug is resolved as an event type FIRST and only
+         * then as a team. Existing booking links therefore keep working even if
+         * someone later names a team after one of them.
+         */
+        if ($type === null) {
+            $group = $this->pages->group($owner, $eventType);
+
+            abort_if($group === null, 404);
+
+            return $this->teamPage($owner, $page, $group);
+        }
 
         $timezone = $this->resolveTimezone($request, $owner);
         $month = $this->resolveMonth($request, $timezone);

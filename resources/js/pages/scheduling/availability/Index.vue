@@ -6,6 +6,8 @@ import {
     ChevronDown,
     Copy,
     MoreVertical,
+    PauseCircle,
+    PlayCircle,
     Plus,
     Repeat,
     Star,
@@ -57,6 +59,7 @@ type Schedule = {
     name: string;
     timezone: string;
     isDefault: boolean;
+    isActive: boolean;
     eventTypeCount: number;
     summary: string | null;
     rules: Rule[];
@@ -93,6 +96,13 @@ const selected = computed(
         null,
 );
 
+/**
+ * Accounts made by `user:super-admin` start with no schedule at all, and the
+ * switcher renders a blank label when nothing is selected, leaving no visible
+ * way to make the first one. Show a real empty state instead.
+ */
+const isEmpty = computed(() => props.schedules.length === 0 && !creating.value);
+
 const buildForm = (schedule: Schedule | null) =>
     useForm({
         name: schedule?.name ?? 'Working hours',
@@ -101,6 +111,7 @@ const buildForm = (schedule: Schedule | null) =>
             Intl.DateTimeFormat().resolvedOptions().timeZone ??
             'UTC',
         is_default: schedule?.isDefault ?? props.schedules.length === 0,
+        is_active: schedule?.isActive ?? true,
         rules: schedule ? schedule.rules.map((rule) => ({ ...rule })) : [],
         overrides: schedule
             ? schedule.overrides.map((override) => ({ ...override }))
@@ -187,6 +198,16 @@ const makeDefault = () => {
     submit();
 };
 
+/**
+ * Switch a schedule off without deleting it. The resolver treats a disabled
+ * schedule as no availability rather than falling back to another one, so
+ * every event type it governs stops offering slots.
+ */
+const toggleActive = () => {
+    form.value.is_active = !form.value.is_active;
+    submit();
+};
+
 const confirmDelete = () => {
     if (!selected.value) {
         return;
@@ -221,8 +242,29 @@ setLayoutProps({
         <AvailabilityTabs />
 
         <div class="rounded-xl border">
+            <div
+                v-if="isEmpty"
+                class="flex flex-col items-center gap-3 p-12 text-center"
+            >
+                <CalendarDays class="size-8 text-muted-foreground" />
+                <div>
+                    <h2 class="font-semibold">No availability yet</h2>
+                    <p class="mt-1 text-sm text-muted-foreground">
+                        Create a schedule to say when you can be booked. Your
+                        event types stay unbookable until you do.
+                    </p>
+                </div>
+                <Button
+                    data-test="create-first-schedule"
+                    @click="startCreating"
+                >
+                    <Plus class="size-4" /> Create schedule
+                </Button>
+            </div>
+
             <!-- Which schedule is being edited. -->
             <div
+                v-if="!isEmpty"
                 class="flex flex-wrap items-start justify-between gap-4 border-b p-6"
             >
                 <div class="min-w-0">
@@ -243,6 +285,16 @@ setLayoutProps({
                                     class="font-normal"
                                 >
                                     (default)
+                                </span>
+                                <span
+                                    v-if="
+                                        selected &&
+                                        !selected.isActive &&
+                                        !creating
+                                    "
+                                    class="rounded-md bg-warning-muted px-2 py-0.5 text-xs font-semibold text-warning-muted-foreground uppercase"
+                                >
+                                    Disabled
                                 </span>
                                 <ChevronDown class="size-4" />
                             </button>
@@ -302,6 +354,19 @@ setLayoutProps({
                             <Star class="size-4" /> Set as default
                         </DropdownMenuItem>
                         <DropdownMenuItem
+                            data-test="toggle-schedule-active"
+                            @select="toggleActive"
+                        >
+                            <component
+                                :is="
+                                    selected.isActive ? PauseCircle : PlayCircle
+                                "
+                                class="size-4"
+                            />
+                            {{ selected.isActive ? 'Disable' : 'Enable' }}
+                            schedule
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
                             v-if="schedules.length > 1"
                             variant="destructive"
                             @select="deleting = true"
@@ -312,7 +377,7 @@ setLayoutProps({
                 </DropdownMenu>
             </div>
 
-            <form class="p-6" @submit.prevent="submit">
+            <form v-if="!isEmpty" class="p-6" @submit.prevent="submit">
                 <div class="grid gap-8 lg:grid-cols-2">
                     <!-- Weekly hours -->
                     <section>
@@ -359,7 +424,7 @@ setLayoutProps({
                                         <Input
                                             v-model="rule.starts_at"
                                             type="time"
-                                            class="w-28"
+                                            class="w-36"
                                             :data-test="`day-${day.value}-start`"
                                         />
                                         <span class="text-muted-foreground"
@@ -368,7 +433,7 @@ setLayoutProps({
                                         <Input
                                             v-model="rule.ends_at"
                                             type="time"
-                                            class="w-28"
+                                            class="w-36"
                                             :data-test="`day-${day.value}-end`"
                                         />
                                         <Button
@@ -499,7 +564,7 @@ setLayoutProps({
                                     <Input
                                         :model-value="override.starts_at ?? ''"
                                         type="time"
-                                        class="w-28"
+                                        class="w-36"
                                         @update:model-value="
                                             (value) =>
                                                 (override.starts_at =
@@ -510,7 +575,7 @@ setLayoutProps({
                                     <Input
                                         :model-value="override.ends_at ?? ''"
                                         type="time"
-                                        class="w-28"
+                                        class="w-36"
                                         @update:model-value="
                                             (value) =>
                                                 (override.ends_at =

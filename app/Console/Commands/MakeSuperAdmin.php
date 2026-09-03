@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Actions\Scheduling\ApplyDefaultHolidays;
+use App\Actions\Scheduling\CreateDefaultAvailability;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Console\Command;
@@ -27,6 +29,13 @@ class MakeSuperAdmin extends Command
      * @var string
      */
     protected $description = 'Grant or revoke super admin, which can see and act across every organization';
+
+    public function __construct(
+        protected CreateDefaultAvailability $createDefaultAvailability,
+        protected ApplyDefaultHolidays $applyDefaultHolidays,
+    ) {
+        parent::__construct();
+    }
 
     /**
      * Execute the console command.
@@ -77,6 +86,17 @@ class MakeSuperAdmin extends Command
                 ->orderBy('name')
                 ->value('id'),
         ])->save();
+
+        /*
+         * CreateNewUser and CreateTeamUser both bootstrap availability, and
+         * this command is the only account-creating path that did not. Without
+         * a schedule the Availability screen has nothing to select and no
+         * obvious way to make one, so the account looks broken on first use.
+         */
+        if ($user->availabilitySchedules()->doesntExist()) {
+            $this->createDefaultAvailability->handle($user);
+            $this->applyDefaultHolidays->handle($user);
+        }
 
         $this->components->info("{$user->email} is now a super admin.");
 

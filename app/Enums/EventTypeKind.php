@@ -81,6 +81,25 @@ enum EventTypeKind: string
     }
 
     /**
+     * Get the kinds that belong on an organization's public page.
+     *
+     * An organization page advertises what the organization offers as a whole,
+     * so it lists only the kinds that draw on a pool of hosts. A person's own
+     * one-on-ones and webinars belong on their personal booking link instead --
+     * they are still reachable by direct URL from the organization page, they
+     * are just not advertised there.
+     *
+     * @return array<int, self>
+     */
+    public static function shared(): array
+    {
+        return array_values(array_filter(
+            self::cases(),
+            fn (self $kind): bool => $kind->requiresTeam(),
+        ));
+    }
+
+    /**
      * Get the kinds as select options.
      *
      * @return array<array{value: string, label: string, flow: string, description: string, requiresTeam: bool}>

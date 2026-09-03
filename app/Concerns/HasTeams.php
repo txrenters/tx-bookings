@@ -206,9 +206,18 @@ trait HasTeams
 
     /**
      * Determine if the user has the given permission on the team.
+     *
+     * A super admin holds a role in no organization, so the role lookup below
+     * would deny them everywhere. Bypassing here rather than at each call site
+     * covers the direct callers that never reach a policy — canAssignOwner on
+     * the event type form and the meeting list's ManageTeamBookings check.
      */
     public function hasTeamPermission(Team $team, TeamPermission $permission): bool
     {
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+
         return $this->teamRole($team)?->hasPermission($permission) ?? false;
     }
 }

@@ -1,0 +1,246 @@
+# Per-application stack for tx-bookings.
+#
+# Contains ONLY this app's services. MySQL runs on the VPS host and the host's
+# nginx terminates TLS; two pre-existing external networks connect the shared
+# pieces:
+#
+#   edge     - reserved for Traefik, if this box ever moves to it. Nothing in
+#              this stack depends on it today; `web` publishes a host port and
+#              the VPS nginx proxies to it.
+#   platform - shared platform services.
+#
+# app, queue, scheduler and migrate are the SAME image running different
+# commands, so their configuration below is intentionally identical. It is
+# written out per service rather than shared through a YAML anchor: merge keys
+# (<<:) are a YAML 1.1 feature, and strict 1.2 parsers -- including Docker
+# Desktop's editor -- refuse to load the file. Keep the four blocks in step.
+#
+# Like texra-crm there is NO horizon service and NO Redis mount: laravel/horizon
+# is not a dependency, and cache, session and queue all run on the database
+# (see .env.docker.example). If Redis is adopted later, mount the DIRECTORY
+# holding the socket, never the socket file -- for the reason spelled out on
+# DB_SOCKET_DIR below.
+name: ${APP_SLUG:-tx-bookings}
+
+services:
+  app:
+    build:
+      context: .
+      target: app
+      args:
+        # Baked into the JS bundle by Wayfinder at build time -- see the ARG in
+        # the Dockerfile. Derived from APP_HOST so the hostname lives in exactly
+        # one place and can never drift.
+        APP_URL: https://${APP_HOST:?APP_HOST is required}
+        # Baked into the bundle as VITE_APP_NAME -- see the ARG in the Dockerfile.
+        APP_NAME: ${APP_NAME:-TX Bookings}
+    image: ${APP_SLUG:-tx-bookings}/app:${APP_VERSION:-latest}
+    restart: unless-stopped
+    # Named .env.docker rather than .env so it cannot be confused with the
+    # compose interpolation file that sits beside it in /opt/tx-bookings.
+    env_file: .env.docker
+    extra_hosts:
+      # Reaches host services from the container. Required on Linux, where
+      # host.docker.internal is not provided by default.
+      - host.docker.internal:host-gateway
+    volumes:
+      # MySQL runs on the VPS host, shared with texra-crm. Connecting over its
+      # Unix socket rather than TCP means no mysqld restart (bind-address is
+      # not dynamic in MySQL 8.0, and restarting would take the other apps down
+      # with it), no TCP exposure, and socket connections authenticate as
+      # 'user'@'localhost'.
+      #
+      # Mount the DIRECTORY, never the socket file. Docker resolves a bind
+      # mount to its target inode at container start, so mounting the socket
+      # itself leaves every container holding an orphaned inode as soon as
+      # mysqld restarts and recreates it: every route 500s with SQLSTATE[HY000]
+      # [2002] while mysqld is perfectly healthy, and compose still reports
+      # every container healthy because the FPM health check never touches the
+      # database. unattended-upgrades restarts mysql, so that is a recurring
+      # outage. Diagnose by comparing
+      # `stat -c %i /var/run/mysqld/mysqld.sock` on the host against the same
+      # command inside the container; recovery is `up -d --force-recreate`.
+      # Compose cannot take a dirname of DB_SOCKET, hence the separate variable.
+      #
+      # MOUNTING THE DIRECTORY IS NOT SUFFICIENT ON ITS OWN. The packaged
+      # mysql.service sets RuntimeDirectory=mysqld, and the systemd default
+      # RuntimeDirectoryPreserve=no means systemd deletes and recreates
+      # /run/mysqld ITSELF on every stop/start -- not just the socket inside
+      # it. The directory inode changes, so the exact same orphaning happens
+      # one level up and the container sees an empty /var/run/mysqld. This took
+      # the site down on 2026-09-01: mysqld restarted at 06:27, app and
+      # scheduler had been up since 08-28 and were orphaned, while queue had
+      # restarted later and kept working -- which is why only some services
+      # broke.
+      #
+      # Fixed on the host, since it affects every containerised app on this box
+      # (texra-crm included), in
+      # /etc/systemd/system/mysql.service.d/preserve-runtime-dir.conf:
+      #
+      #     [Service]
+      #     RuntimeDirectoryPreserve=yes
+      #
+      # Verify with `systemctl show mysql -p RuntimeDirectoryPreserve`. That
+      # drop-in lives only on the server; a rebuilt VPS needs it again. The
+      # health check added in docker/healthcheck-db.sh is the backstop that
+      # makes a recurrence show up as `unhealthy` instead of silently healthy.
+      - ${DB_SOCKET_DIR:-/var/run/mysqld}:/var/run/mysqld
+      # Only user-generated data is persisted. storage/framework stays inside
+      # the container on purpose: compiled views and per-replica caches are
+      # derived from the image, and persisting them would carry a previous
+      # deploy's compiled Blade forward and share state between replicas.
+      #
+      # storage/app/public holds the team logos, which are the only user
+      # uploads in the app and must survive a deploy.
+      - storage-app:/var/www/html/storage/app
+      - storage-logs:/var/www/html/storage/logs
+    networks:
+      - internal
+      - platform
+    # Health check is inherited from the image (pings PHP-FPM over FastCGI).
+
+  web:
+    build:
+      context: .
+      target: web
+      args:
+        APP_URL: https://${APP_HOST:?APP_HOST is required}
+        # Baked into the bundle as VITE_APP_NAME -- see the ARG in the Dockerfile.
+        APP_NAME: ${APP_NAME:-TX Bookings}
+    image: ${APP_SLUG:-tx-bookings}/web:${APP_VERSION:-latest}
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    volumes:
+      # Read-only: nginx serves the team logos through the public/storage
+      # symlink but must never write into the volume.
+      - storage-app:/var/www/html/storage/app:ro
+    ports:
+      # Bound to loopback only. The VPS's nginx proxies
+      # bookings.texasrenters.com here and is the sole public entry point;
+      # publishing on 0.0.0.0 would expose the app on http://45.132.241.14:8084
+      # with no TLS. 8084 because texra-crm already holds 8083.
+      - '127.0.0.1:${HTTP_PORT:-8084}:80'
+    networks:
+      - internal
+      - edge
+
+  migrate:
+    build:
+      context: .
+      target: app
+      args:
+        APP_URL: https://${APP_HOST:?APP_HOST is required}
+        # Baked into the bundle as VITE_APP_NAME -- see the ARG in the Dockerfile.
+        APP_NAME: ${APP_NAME:-TX Bookings}
+    image: ${APP_SLUG:-tx-bookings}/app:${APP_VERSION:-latest}
+    # Under a profile so `up -d` never starts it; bin/deploy.sh runs it
+    # explicitly with `run --rm`, once, before the new code serves traffic.
+    profiles: [tools]
+    restart: "no"
+    command: php artisan migrate --force
+    env_file: .env.docker
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      - ${DB_SOCKET_DIR:-/var/run/mysqld}:/var/run/mysqld
+      - storage-app:/var/www/html/storage/app
+      - storage-logs:/var/www/html/storage/logs
+    networks:
+      - internal
+      - platform
+
+  queue:
+    build:
+      context: .
+      target: app
+      args:
+        APP_URL: https://${APP_HOST:?APP_HOST is required}
+        # Baked into the bundle as VITE_APP_NAME -- see the ARG in the Dockerfile.
+        APP_NAME: ${APP_NAME:-TX Bookings}
+    image: ${APP_SLUG:-tx-bookings}/app:${APP_VERSION:-latest}
+    restart: unless-stopped
+    # Not optional. CreateBooking, CancelBooking and RescheduleBooking dispatch
+    # SyncBookingToCalendars / RemoveBookingFromCalendars, so without a worker
+    # a booking is confirmed to the invitee but never lands on anyone's
+    # calendar -- the jobs simply pile up in the `jobs` table with no visible
+    # error anywhere. Booking notifications queue through here too.
+    #
+    # --max-time recycles the worker hourly so a slow leak cannot accumulate,
+    # and picks up new code only on redeploy (the image is immutable).
+    command: php artisan queue:work --queue=default --sleep=3 --tries=3 --max-time=3600
+    env_file: .env.docker
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      - ${DB_SOCKET_DIR:-/var/run/mysqld}:/var/run/mysqld
+      - storage-app:/var/www/html/storage/app
+      - storage-logs:/var/www/html/storage/logs
+    networks:
+      - internal
+      - platform
+    # Drains the in-flight job before exiting rather than being SIGKILLed
+    # mid-sync. Comfortably above the default 60s job timeout.
+    stop_grace_period: 120s
+    healthcheck:
+      # The database half matters as much as the process half: a worker whose
+      # socket mount has gone stale keeps running and keeps failing every job.
+      test: ["CMD-SHELL", "pgrep -f 'queue:work' > /dev/null && healthcheck-db"]
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      retries: 3
+
+  scheduler:
+    build:
+      context: .
+      target: app
+      args:
+        APP_URL: https://${APP_HOST:?APP_HOST is required}
+        # Baked into the bundle as VITE_APP_NAME -- see the ARG in the Dockerfile.
+        APP_NAME: ${APP_NAME:-TX Bookings}
+    image: ${APP_SLUG:-tx-bookings}/app:${APP_VERSION:-latest}
+    restart: unless-stopped
+    # Unlike texra-crm's, this scheduler has real work: routes/console.php
+    # registers bookings:send-reminders every five minutes, calendars:sync
+    # hourly, and a daily expired-invitation sweep. Exactly one replica --
+    # two would double-fire every one of them, which for reminders means
+    # invitees get the same email twice.
+    command: php artisan schedule:work
+    env_file: .env.docker
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      - ${DB_SOCKET_DIR:-/var/run/mysqld}:/var/run/mysqld
+      - storage-app:/var/www/html/storage/app
+      - storage-logs:/var/www/html/storage/logs
+    networks:
+      - internal
+      - platform
+    healthcheck:
+      # As for queue above: schedule:work keeps ticking against a dead
+      # connection, so the process check alone reports healthy through an outage.
+      test: ["CMD-SHELL", "pgrep -f 'schedule:work' > /dev/null && healthcheck-db"]
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      retries: 3
+
+volumes:
+  # Declared external so a `docker compose down -v` cannot take the team logos
+  # with it. Created once by bin/setup.sh.
+  storage-app:
+    external: true
+    name: ${APP_SLUG:-tx-bookings}_storage-app
+  storage-logs:
+    external: true
+    name: ${APP_SLUG:-tx-bookings}_storage-logs
+
+networks:
+  internal:
+    driver: bridge
+  edge:
+    external: true
+  platform:
+    external: true

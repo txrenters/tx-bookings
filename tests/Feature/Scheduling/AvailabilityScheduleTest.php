@@ -4,6 +4,8 @@ use App\Models\AvailabilitySchedule;
 use App\Models\CalendarAccount;
 use App\Models\EventType;
 use App\Models\User;
+use App\Services\Scheduling\AvailabilityEngine;
+use App\Services\Scheduling\ScheduleResolver;
 
 beforeEach(function () {
     $this->user = User::factory()->create();
@@ -135,6 +137,62 @@ test('updating a schedule replaces its rules', function () {
 
     expect($rules)->toHaveCount(1)
         ->and($rules->first()->day_of_week)->toBe(3);
+});
+
+test('a schedule can be disabled and re-enabled', function () {
+    $schedule = AvailabilitySchedule::factory()->for($this->user)->weekdays()->create();
+
+    expect($schedule->is_active)->toBeTrue();
+
+    $this->actingAs($this->user)
+        ->patch(
+            route('availability.update', ['current_team' => $this->team->slug, 'availability' => $schedule->id]),
+            schedulePayload(['is_active' => false]),
+        )
+        ->assertRedirect();
+
+    expect($schedule->fresh()->is_active)->toBeFalse();
+
+    $this->actingAs($this->user)
+        ->patch(
+            route('availability.update', ['current_team' => $this->team->slug, 'availability' => $schedule->id]),
+            schedulePayload(['is_active' => true]),
+        )
+        ->assertRedirect();
+
+    expect($schedule->fresh()->is_active)->toBeTrue();
+});
+
+test('a disabled schedule offers no slots', function () {
+    $schedule = AvailabilitySchedule::factory()->for($this->user)->everyDay()->create(['is_default' => true]);
+    $eventType = EventType::factory()->ownedBy($this->user)->create(['duration_minutes' => 30]);
+
+    $engine = app(AvailabilityEngine::class);
+    $window = $engine->bookableWindow($eventType);
+
+    expect($engine->slots($eventType, $window)->count())->toBeGreaterThan(0);
+
+    $schedule->update(['is_active' => false]);
+
+    expect($engine->slots($eventType, $window)->count())->toBe(0);
+});
+
+test('a disabled schedule does not fall back to another schedule', function () {
+    // Deliberately switching a schedule off must not silently substitute
+    // someone's other hours — that would book people when they said no.
+    $default = AvailabilitySchedule::factory()->for($this->user)->everyDay()->create([
+        'name' => 'Working hours', 'is_default' => true, 'is_active' => false,
+    ]);
+    AvailabilitySchedule::factory()->for($this->user)->everyDay()->create([
+        'name' => 'Backup hours', 'is_default' => false,
+    ]);
+
+    $eventType = EventType::factory()->ownedBy($this->user)->create(['duration_minutes' => 30]);
+
+    $resolved = app(ScheduleResolver::class)->resolve($eventType, $this->user);
+
+    expect($resolved)->toBeNull()
+        ->and($default->fresh()->is_active)->toBeFalse();
 });
 
 test('a user cannot edit someone elses schedule', function () {

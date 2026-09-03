@@ -24,13 +24,13 @@ const emit = defineEmits<{
 }>();
 
 const weekdayLabels = [
+    { short: 'Sun', full: 'Sunday' },
     { short: 'Mon', full: 'Monday' },
     { short: 'Tue', full: 'Tuesday' },
     { short: 'Wed', full: 'Wednesday' },
     { short: 'Thu', full: 'Thursday' },
     { short: 'Fri', full: 'Friday' },
     { short: 'Sat', full: 'Saturday' },
-    { short: 'Sun', full: 'Sunday' },
 ];
 
 const available = computed(() => new Set(props.availableDates));
@@ -51,15 +51,15 @@ const monthLabel = computed(() =>
     }),
 );
 
-/** The calendar grid, padded so the month always starts on a Monday. */
+/** The calendar grid, padded so the month always starts on a Sunday. */
 const cells = computed(() => {
     const start = monthStart.value;
     const daysInMonth = new Date(
         Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0),
     ).getUTCDate();
 
-    // getUTCDay() is 0 for Sunday; shift so Monday is the first column.
-    const leading = (start.getUTCDay() + 6) % 7;
+    // getUTCDay() is already 0 for Sunday, which is the first column.
+    const leading = start.getUTCDay();
     const result: Array<{ date: string; day: number } | null> =
         Array(leading).fill(null);
 

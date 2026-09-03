@@ -16,6 +16,15 @@ Route::prefix('{current_team}')
         Route::get('activity', [ActivityLogController::class, 'index'])->name('activity.index');
     });
 
+/*
+ * Guest-reachable on purpose: this is the "Join Now" link from the invitation
+ * email, and the whole point is that the invitee has no account yet. The
+ * 64-character invitation code is the credential, and it is single use -- the
+ * controller accepts only a pending invitation and marks it accepted.
+ */
+Route::get('invitations/{invitation}/join', [TeamInvitationController::class, 'join'])
+    ->name('invitations.join');
+
 Route::middleware(['auth'])->group(function () {
     Route::post('invitations/{invitation}/accept', [TeamInvitationController::class, 'accept'])->name('invitations.accept');
     Route::delete('invitations/{invitation}', [TeamInvitationController::class, 'decline'])->name('invitations.decline');

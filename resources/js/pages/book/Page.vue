@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
-import { ArrowRight, CalendarClock, Clock, Video } from '@lucide/vue';
+import {
+    ArrowLeft,
+    ArrowRight,
+    CalendarClock,
+    Clock,
+    Video,
+} from '@lucide/vue';
 
 type Props = {
     page: {
@@ -20,9 +26,19 @@ type Props = {
         locationLabel: string;
         url: string;
     }>;
+    /**
+     * Set only when this is one team's landing page, and used to offer a way
+     * back up to the organization that owns it.
+     */
+    parent?: {
+        name: string;
+        url: string;
+    } | null;
 };
 
-defineProps<Props>();
+withDefaults(defineProps<Props>(), {
+    parent: null,
+});
 </script>
 
 <template>
@@ -30,6 +46,17 @@ defineProps<Props>();
 
     <div class="min-h-svh bg-background px-4 py-12 sm:py-20">
         <div class="mx-auto w-full max-w-2xl">
+            <p v-if="parent" class="mb-6 text-center text-sm">
+                <a
+                    :href="parent.url"
+                    data-test="back-to-organization"
+                    class="inline-flex items-center gap-1.5 rounded-md font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
+                >
+                    <ArrowLeft class="size-3.5" aria-hidden="true" />
+                    {{ parent.name }}
+                </a>
+            </p>
+
             <header class="text-center">
                 <!--
                   Decorative: the organisation name is rendered right below it,

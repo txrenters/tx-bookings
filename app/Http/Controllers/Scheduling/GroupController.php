@@ -24,7 +24,7 @@ class GroupController extends Controller
         Gate::authorize('viewAny', Group::class);
 
         $groups = $current_team->groups()
-            ->with('members:id,name,email')
+            ->with(['members:id,name,email', 'team:id,slug'])
             ->withCount('eventTypes')
             ->orderBy('name')
             ->get();
@@ -122,6 +122,15 @@ class GroupController extends Controller
             'name' => $group->name,
             'description' => $group->description,
             'eventTypeCount' => $group->event_types_count,
+            /*
+             * Each team has its own public landing page listing just its event
+             * types. Built here rather than in the component so the URL shape
+             * lives with the route that serves it.
+             */
+            'bookingUrl' => route('book.event-type', [
+                'page' => $group->team->slug,
+                'eventType' => $group->slug,
+            ]),
             'members' => $group->members->map(fn (User $member) => [
                 'id' => $member->id,
                 'name' => $member->name,

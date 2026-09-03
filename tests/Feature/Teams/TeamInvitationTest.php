@@ -31,26 +31,7 @@ test('team invitations can be created', function () {
     ]);
 });
 
-test('invitation email for existing users uses login route', function () {
-    $owner = User::factory()->create();
-    $invitedUser = User::factory()->create(['email' => 'invited@example.com']);
-    $team = Team::factory()->create();
-
-    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
-
-    $invitation = TeamInvitation::factory()->create([
-        'team_id' => $team->id,
-        'email' => $invitedUser->email,
-        'invited_by' => $owner->id,
-    ]);
-
-    $mail = (new TeamInvitationNotification($invitation))->toMail($invitedUser);
-
-    expect($mail->actionUrl)->toBe(route('login', ['invitation' => $invitation->code]));
-    $this->assertStringContainsString('dashboard', implode(' ', $mail->introLines));
-});
-
-test('invitation email for unknown users uses login route', function () {
+test('invitation email points at the one-click join link', function () {
     $owner = User::factory()->create();
     $team = Team::factory()->create();
 
@@ -64,8 +45,125 @@ test('invitation email for unknown users uses login route', function () {
 
     $mail = (new TeamInvitationNotification($invitation))->toMail((object) []);
 
-    expect($mail->actionUrl)->toBe(route('login', ['invitation' => $invitation->code]));
-    $this->assertStringContainsString('log in', strtolower(implode(' ', $mail->introLines)));
+    expect($mail->actionUrl)->toBe(route('invitations.join', ['invitation' => $invitation->code]))
+        ->and($mail->actionText)->toBe('Join Now');
+});
+
+test('joining from the email creates the account, signs the invitee in and accepts', function () {
+    $owner = User::factory()->create();
+    $team = Team::factory()->create();
+
+    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+
+    $invitation = TeamInvitation::factory()->create([
+        'team_id' => $team->id,
+        'email' => 'newcomer@example.com',
+        'role' => TeamRole::Member->value,
+        'invited_by' => $owner->id,
+    ]);
+
+    $this->get(route('invitations.join', ['invitation' => $invitation->code]))
+        ->assertRedirect(route('dashboard', ['current_team' => $team->slug]));
+
+    $user = User::where('email', 'newcomer@example.com')->first();
+
+    expect($user)->not->toBeNull()
+        ->and($user->email_verified_at)->not->toBeNull()
+        ->and($user->current_team_id)->toBe($team->id)
+        ->and($team->fresh()->members->contains($user))->toBeTrue()
+        ->and($invitation->fresh()->accepted_at)->not->toBeNull();
+
+    $this->assertAuthenticatedAs($user);
+});
+
+test('joining gives the invitee working hours rather than an empty calendar', function () {
+    $owner = User::factory()->create();
+    $team = Team::factory()->create();
+
+    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+
+    $invitation = TeamInvitation::factory()->create([
+        'team_id' => $team->id,
+        'email' => 'newcomer@example.com',
+        'invited_by' => $owner->id,
+    ]);
+
+    $this->get(route('invitations.join', ['invitation' => $invitation->code]));
+
+    $user = User::where('email', 'newcomer@example.com')->first();
+
+    expect($user->availabilitySchedules()->exists())->toBeTrue();
+});
+
+/*
+ * The link is a bearer credential, so it must stop working the moment it has
+ * been used -- otherwise a forwarded email is a permanent way in.
+ */
+test('a join link cannot be used twice', function () {
+    $owner = User::factory()->create();
+    $team = Team::factory()->create();
+
+    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+
+    $invitation = TeamInvitation::factory()->create([
+        'team_id' => $team->id,
+        'email' => 'newcomer@example.com',
+        'invited_by' => $owner->id,
+    ]);
+
+    $this->get(route('invitations.join', ['invitation' => $invitation->code]));
+
+    $this->post(route('logout'));
+
+    $this->get(route('invitations.join', ['invitation' => $invitation->code]))
+        ->assertRedirect(route('login'));
+
+    $this->assertGuest();
+    expect(User::where('email', 'newcomer@example.com')->count())->toBe(1);
+});
+
+test('an expired join link is refused', function () {
+    $owner = User::factory()->create();
+    $team = Team::factory()->create();
+
+    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+
+    $invitation = TeamInvitation::factory()->create([
+        'team_id' => $team->id,
+        'email' => 'newcomer@example.com',
+        'invited_by' => $owner->id,
+        'expires_at' => now()->subDay(),
+    ]);
+
+    $this->get(route('invitations.join', ['invitation' => $invitation->code]))
+        ->assertRedirect(route('login'));
+
+    $this->assertGuest();
+    expect(User::where('email', 'newcomer@example.com')->exists())->toBeFalse();
+});
+
+/*
+ * An existing account may hold a password and a second factor. A link sitting
+ * in an inbox must not be enough to walk past either.
+ */
+test('an address that already has an account is sent to sign in, not signed in', function () {
+    $owner = User::factory()->create();
+    $team = Team::factory()->create();
+    $existing = User::factory()->create(['email' => 'member@example.com']);
+
+    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+
+    $invitation = TeamInvitation::factory()->create([
+        'team_id' => $team->id,
+        'email' => $existing->email,
+        'invited_by' => $owner->id,
+    ]);
+
+    $this->get(route('invitations.join', ['invitation' => $invitation->code]))
+        ->assertRedirect(route('login', ['invitation' => $invitation->code]));
+
+    $this->assertGuest();
+    expect($invitation->fresh()->accepted_at)->toBeNull();
 });
 
 test('team invitations can be created by admins', function () {

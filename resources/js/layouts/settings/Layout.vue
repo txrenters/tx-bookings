@@ -32,6 +32,12 @@ const sidebarNavItems = computed<NavItem[]>(() => [
 ]);
 
 const { isCurrentOrParentUrl } = useCurrentUrl();
+
+/**
+ * Settings pages are forms, so the content column is deliberately narrow.
+ * Data-heavy pages (the log viewer) opt out and use the full width.
+ */
+withDefaults(defineProps<{ wide?: boolean }>(), { wide: false });
 </script>
 
 <template>
@@ -67,8 +73,8 @@ const { isCurrentOrParentUrl } = useCurrentUrl();
 
             <Separator class="my-6 lg:hidden" />
 
-            <div class="flex-1 md:max-w-2xl">
-                <section class="max-w-xl space-y-12">
+            <div class="flex-1" :class="{ 'md:max-w-2xl': !wide }">
+                <section class="space-y-12" :class="{ 'max-w-xl': !wide }">
                     <slot />
                 </section>
             </div>

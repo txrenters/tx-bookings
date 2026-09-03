@@ -17,6 +17,7 @@ use Illuminate\Support\Carbon;
  * @property string $name
  * @property string $timezone
  * @property bool $is_default
+ * @property bool $is_active
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read User $user
@@ -24,11 +25,20 @@ use Illuminate\Support\Carbon;
  * @property-read Collection<int, AvailabilityOverride> $overrides
  * @property-read Collection<int, EventType> $eventTypes
  */
-#[Fillable(['user_id', 'name', 'timezone', 'is_default'])]
+#[Fillable(['user_id', 'name', 'timezone', 'is_default', 'is_active'])]
 class AvailabilitySchedule extends Model
 {
     /** @use HasFactory<AvailabilityScheduleFactory> */
     use HasFactory;
+
+    /**
+     * The model's default attribute values.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'is_active' => true,
+    ];
 
     /**
      * Bootstrap the model and its traits.
@@ -168,6 +178,7 @@ class AvailabilitySchedule extends Model
     {
         return [
             'is_default' => 'boolean',
+            'is_active' => 'boolean',
         ];
     }
 }

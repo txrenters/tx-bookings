@@ -101,6 +101,12 @@ class BookingMailPresenter
 
     /**
      * Add the manage links appropriate to the recipient.
+     *
+     * Only the host gets one. An invitee is deliberately offered no way to
+     * reschedule or cancel themselves -- changes go through the organizer, so
+     * the confirmation is a statement rather than a menu. The routes still
+     * exist and still work: the host's own Meetings page uses them, and a link
+     * handed out before this change must not start 404ing.
      */
     public function withFooter(MailMessage $message): MailMessage
     {
@@ -108,8 +114,6 @@ class BookingMailPresenter
             return $message->action('View booking', route('meetings.index', ['current_team' => $this->booking->team->slug]));
         }
 
-        return $message
-            ->action('Reschedule', route('booking.reschedule', ['booking' => $this->booking->uid]))
-            ->line('Need to cancel? [Cancel this meeting]('.route('booking.cancel', ['booking' => $this->booking->uid]).')');
+        return $message;
     }
 }

@@ -198,6 +198,7 @@ class AvailabilityScheduleController extends Controller
             'name' => $schedule->name,
             'timezone' => $schedule->timezone,
             'isDefault' => $schedule->is_default,
+            'isActive' => $schedule->is_active,
             'eventTypeCount' => $schedule->event_types_count,
             'summary' => $schedule->summary(),
             'rules' => $schedule->rules->map(fn (AvailabilityRule $rule) => [

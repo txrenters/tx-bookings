@@ -1,0 +1,77 @@
+name: deploy
+
+# Runs on the self-hosted runner on the application's own VPS, only after
+# `tests` has finished successfully on main. Gating with workflow_run reuses the
+# existing test workflow rather than duplicating its steps, so a red build can
+# never reach the server.
+on:
+  workflow_run:
+    workflows: [tests]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# Two deploys at once would race each other through bin/deploy.sh's scaling
+# logic and leave orphaned containers behind. Queue instead of cancelling: a
+# half-finished deploy is worse than a delayed one.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    # workflow_run fires for failed runs too, so the conclusion has to be
+    # checked explicitly. A manual dispatch carries no workflow_run payload.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+
+    # The tx-bookings label picks this box's second runner. texra-crm's runner
+    # shares the host but is registered to its own repository and carries the
+    # texra-crm label, so the two never pick up each other's jobs.
+    runs-on: [self-hosted, tx-bookings]
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout the commit that passed tests
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # A workflow_run event checks out the default branch by default, not
+          # the commit that triggered it.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          # The checkout's token is enough to deliver the code; nothing is left
+          # on disk afterwards. This is the only GitHub credential involved
+          # anywhere in the deploy, which is why bin/deploy.sh runs with
+          # SKIP_PULL=1 -- the server itself holds no credential and an
+          # unguarded `git pull` would fail and abort the deploy.
+          persist-credentials: false
+
+      - name: Sync into the deployment directory
+        run: |
+          # --delete so a file removed in a commit is removed on the server.
+          # The two env files live only on the box and hold every secret the
+          # containers read; they are never in the repository and must survive.
+          rsync -a --delete \
+            --exclude '.env' \
+            --exclude '.env.docker' \
+            ./ /opt/tx-bookings/
+
+      - name: Deploy
+        working-directory: /opt/tx-bookings
+        run: SKIP_PULL=1 bash bin/deploy.sh
+
+      - name: Verify the app is serving
+        run: |
+          # The published port, not the public hostname: this proves the new
+          # containers are healthy without depending on DNS or the host's nginx.
+          curl -fsS -o /dev/null -w 'health: %{http_code}\n' http://127.0.0.1:8084/up
+
+          # /up boots the framework but touches no database, so it stays green
+          # through a total outage: on 2026-09-01 a MySQL restart left every
+          # page 500ing for fourteen hours while this step reported success.
+          # A rendered page proves the database, the session store and the Vite
+          # manifest as well, which is what "serving" has to mean.
+          curl -fsS -o /dev/null -w 'login: %{http_code}\n' http://127.0.0.1:8084/login

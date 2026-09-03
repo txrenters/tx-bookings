@@ -13,6 +13,10 @@ class ScheduleResolver
      *
      * The most specific schedule wins: the host's override on the event type,
      * then the event type's own schedule, then the host's default schedule.
+     *
+     * A disabled schedule resolves to null rather than falling through to the
+     * next candidate. Substituting different hours for a schedule someone
+     * deliberately switched off would be worse than offering nothing.
      */
     public function resolve(EventType $eventType, User $host): ?AvailabilitySchedule
     {
@@ -23,7 +27,7 @@ class ScheduleResolver
             $schedule = AvailabilitySchedule::query()->whereKey((int) $pivotScheduleId)->first();
 
             if ($schedule !== null) {
-                return $schedule;
+                return $schedule->is_active ? $schedule : null;
             }
         }
 
@@ -31,10 +35,12 @@ class ScheduleResolver
             $schedule = $eventType->availabilitySchedule;
 
             if ($schedule !== null) {
-                return $schedule;
+                return $schedule->is_active ? $schedule : null;
             }
         }
 
-        return $host->defaultAvailabilitySchedule();
+        $schedule = $host->defaultAvailabilitySchedule();
+
+        return $schedule?->is_active ? $schedule : null;
     }
 }

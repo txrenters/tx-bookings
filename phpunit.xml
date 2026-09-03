@@ -23,10 +23,20 @@
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
-        <env name="DB_CONNECTION" value="sqlite"/>
-        <env name="DB_DATABASE" value=":memory:"/>
+        <!--
+            MySQL, not sqlite :memory:, so the suite exercises the engine
+            production actually runs. Only the connection and database name are
+            pinned here; host and credentials come from .env, so this file holds
+            no secrets and works against whatever local MySQL is in use.
+
+            Requires the tx_bookings_test database to exist:
+                mysql -e 'CREATE DATABASE IF NOT EXISTS tx_bookings_test'
+        -->
+        <env name="DB_CONNECTION" value="mysql"/>
+        <env name="DB_DATABASE" value="tx_bookings_test"/>
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
+        <env name="MAIL_FROM_ADDRESS" value="tests@example.com"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>

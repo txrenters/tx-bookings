@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
 import { FileText, Search, Trash2, TriangleAlert } from '@lucide/vue';
-import { ref, watch } from 'vue';
+import { h, ref, watch } from 'vue';
 import Heading from '@/components/Heading.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,7 +41,15 @@ const props = defineProps<{
     entries?: Entry[];
 }>();
 
-defineOptions({ layout: SettingsLayout });
+/*
+ * The log viewer is a data table, not a settings form. Opt out of the narrow
+ * settings column so long messages and stack traces have room to breathe
+ * instead of wrapping inside 36rem.
+ */
+defineOptions({
+    layout: (_h: unknown, page: unknown) =>
+        h(SettingsLayout, { wide: true }, () => page),
+});
 
 const searchTerm = ref(props.search);
 const expanded = ref<string | null>(null);
@@ -54,9 +62,11 @@ const levelClass = (level: string) => {
         return 'bg-destructive/10 text-destructive';
     }
 
-    return level === 'warning'
-        ? 'bg-success-muted text-success-muted-foreground'
-        : 'bg-muted text-muted-foreground';
+    if (level === 'warning') {
+        return 'bg-warning-muted text-warning-muted-foreground';
+    }
+
+    return 'bg-muted text-muted-foreground';
 };
 
 const reload = (params: Record<string, string>) => {
@@ -120,7 +130,9 @@ const toggle = (id: string) => {
             <div class="flex flex-wrap items-center gap-2">
                 <Select
                     :model-value="file"
-                    @update:model-value="(value) => reload({ file: value as string })"
+                    @update:model-value="
+                        (value) => reload({ file: value as string })
+                    "
                 >
                     <SelectTrigger
                         class="w-60 cursor-pointer"
@@ -142,7 +154,9 @@ const toggle = (id: string) => {
 
                 <Select
                     :model-value="level"
-                    @update:model-value="(value) => reload({ level: value as string })"
+                    @update:model-value="
+                        (value) => reload({ level: value as string })
+                    "
                 >
                     <SelectTrigger
                         class="w-40 cursor-pointer"
@@ -209,7 +223,7 @@ const toggle = (id: string) => {
                         @click="toggle(entry.id)"
                     >
                         <span
-                            class="shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold uppercase"
+                            class="w-20 shrink-0 rounded-md px-2 py-0.5 text-center text-xs font-semibold uppercase"
                             :class="levelClass(entry.level)"
                         >
                             {{ entry.level }}
@@ -233,7 +247,7 @@ const toggle = (id: string) => {
                     <pre
                         v-if="expanded === entry.id && entry.context"
                         class="max-h-80 overflow-auto border-t border-border bg-muted px-4 py-3 font-mono text-xs"
-                    >{{ entry.context }}</pre>
+                        >{{ entry.context }}</pre>
                 </li>
             </ul>
 

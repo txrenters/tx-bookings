@@ -13,7 +13,7 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'TexasRenters.com Bookings'),
+    'name' => env('APP_NAME', 'TX Bookings'),
 
     /*
     |--------------------------------------------------------------------------

@@ -91,6 +91,35 @@ test('the slug must be unique within the team', function () {
         ->assertSessionHasErrors('slug');
 });
 
+/*
+ * The unique index is on (team_id, slug) alone while the validation rule
+ * excludes soft deleted rows, so before the slug was released on delete this
+ * combination passed validation and then died on INSERT with a raw 1062 --
+ * a bare 500 on the save button.
+ */
+test('a slug can be reused after its event type is deleted', function () {
+    $eventType = EventType::factory()->ownedBy($this->user)->create(['slug' => 'discovery-call']);
+
+    $eventType->delete();
+
+    expect($eventType->fresh()->slug)->not->toBe('discovery-call');
+
+    $this->actingAs($this->user)
+        ->post(route('scheduling.store', ['current_team' => $this->team->slug]), eventTypePayload())
+        ->assertSessionHasNoErrors()
+        ->assertRedirect(route('scheduling.index', ['current_team' => $this->team->slug]));
+
+    expect(EventType::where('slug', 'discovery-call')->count())->toBe(1);
+});
+
+test('force deleting an event type leaves its slug alone', function () {
+    $eventType = EventType::factory()->ownedBy($this->user)->create(['slug' => 'discovery-call']);
+
+    $eventType->forceDelete();
+
+    expect(EventType::withTrashed()->where('slug', 'discovery-call')->exists())->toBeFalse();
+});
+
 test('reserved slugs are rejected', function () {
     $this->actingAs($this->user)
         ->post(route('scheduling.store', ['current_team' => $this->team->slug]), eventTypePayload(['slug' => 'dashboard']))

@@ -15,5 +15,6 @@ Before planning or editing, find the row whose globs match the file's path and r
 | resources/js/lib/** | .ai/rules/lib.md |
 | app/Services/Logs/** | .ai/rules/logs.md |
 | app/Models/EventType.php, app/Models/Availability*.php | .ai/rules/models.md |
+| app/Policies/** | .ai/rules/policies.md |
 | app/Services/Scheduling/** | .ai/rules/scheduling.md |
 | app/Http/Controllers/Teams/** | .ai/rules/teams.md |

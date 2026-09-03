@@ -1,8 +1,12 @@
 <?php
 
+use App\Actions\Scheduling\CreateDefaultAvailability;
+use App\Enums\TeamPermission;
 use App\Enums\TeamRole;
+use App\Models\EventType;
 use App\Models\Team;
 use App\Models\User;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
 
 /**
@@ -80,6 +84,65 @@ test('a super admin has full permissions in an organization they do not belong t
         ->and($permissions->canRemoveMember)->toBeTrue();
 });
 
+test('a super admin can act in an organization they do not belong to', function () {
+    $admin = superAdmin();
+    $team = foreignOrganization();
+    $member = User::factory()->create();
+    $team->members()->attach($member, ['role' => TeamRole::Member->value]);
+
+    // Gate::before is what makes this pass: teamRole() is null for a super
+    // admin, so the permission lookup inside TeamPolicy would otherwise deny.
+    $this->actingAs($admin)
+        ->patch(route('teams.members.update', ['team' => $team->slug, 'user' => $member->id]), [
+            'role' => TeamRole::Admin->value,
+        ])
+        ->assertRedirect();
+
+    expect($team->memberships()->where('user_id', $member->id)->sole()->role)
+        ->toBe(TeamRole::Admin);
+});
+
+test('a super admin passes policy checks on records in a foreign organization', function () {
+    $admin = superAdmin();
+    $team = foreignOrganization();
+    $owner = $team->members()->sole();
+    $eventType = EventType::factory()->ownedBy($owner)->create();
+
+    expect(Gate::forUser($admin)->allows('update', $eventType))->toBeTrue()
+        ->and(Gate::forUser(User::factory()->create())->allows('update', $eventType))->toBeFalse();
+});
+
+test('an ordinary user is still denied in an organization they do not belong to', function () {
+    // Guards the Gate::before closure: it must return null, not false, for
+    // everyone else, and must not grant anything to non super admins.
+    $outsider = User::factory()->create(['email_verified_at' => now()]);
+    $team = foreignOrganization();
+    $member = User::factory()->create();
+    $team->members()->attach($member, ['role' => TeamRole::Member->value]);
+
+    $this->actingAs($outsider)
+        ->patch(route('teams.members.update', ['team' => $team->slug, 'user' => $member->id]), [
+            'role' => TeamRole::Admin->value,
+        ])
+        ->assertForbidden();
+});
+
+test('a super admin has team permissions without holding a role', function () {
+    $admin = superAdmin();
+    $team = foreignOrganization();
+
+    // hasTeamPermission() is called directly by EventTypeController's
+    // canAssignOwner and MeetingController, which never reach a policy, so
+    // Gate::before cannot cover them.
+    expect($admin->teamRole($team))->toBeNull()
+        ->and($admin->hasTeamPermission($team, TeamPermission::ManageTeamBookings))->toBeTrue()
+        ->and($admin->hasTeamPermission($team, TeamPermission::ManageEventTypes))->toBeTrue();
+
+    $outsider = User::factory()->create();
+
+    expect($outsider->hasTeamPermission($team, TeamPermission::ManageTeamBookings))->toBeFalse();
+});
+
 test('the log viewer is reachable only by a super admin', function () {
     $this->actingAs(superAdmin())->get(route('logs.index'))->assertOk();
 
@@ -121,6 +184,29 @@ test('the command creates a verified account when none exists', function () {
     expect($user->is_super_admin)->toBeTrue()
         ->and($user->email_verified_at)->not->toBeNull()
         ->and(Hash::check('a-known-password', $user->password))->toBeTrue();
+});
+
+test('the command gives a newly created account a usable default schedule', function () {
+    $this->artisan('user:super-admin', ['email' => 'root@texasrenters.com'])
+        ->assertExitCode(0);
+
+    $user = User::query()->where('email', 'root@texasrenters.com')->sole();
+    $schedule = $user->availabilitySchedules()->with('rules')->sole();
+
+    // Without this the Availability screen has nothing to select and no
+    // visible way to create a first schedule.
+    expect($schedule->is_default)->toBeTrue()
+        ->and($schedule->rules)->toHaveCount(5);
+});
+
+test('promoting an account that already has availability does not add another', function () {
+    $user = User::factory()->create(['email' => 'ops@texasrenters.com']);
+    app(CreateDefaultAvailability::class)->handle($user);
+
+    $this->artisan('user:super-admin', ['email' => 'ops@texasrenters.com'])
+        ->assertExitCode(0);
+
+    expect($user->availabilitySchedules()->count())->toBe(1);
 });
 
 test('the command can revoke the role again', function () {

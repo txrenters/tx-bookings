@@ -2,7 +2,9 @@
 
 namespace App\Services\Scheduling;
 
+use App\Enums\EventTypeKind;
 use App\Models\EventType;
+use App\Models\Group;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -37,6 +39,48 @@ class BookingPageResolver
     {
         return $this->query($page)
             ->where('is_hidden', false)
+            /*
+             * An organization page advertises only the shared kinds. A person's
+             * own one-on-ones belong on their personal link, not on the front
+             * door of the organization -- but they still RESOLVE here, so any
+             * link already handed out keeps working.
+             */
+            ->when(
+                $page instanceof Team,
+                fn (Builder $query) => $query->whereIn('kind', EventTypeKind::shared()),
+            )
+            ->orderBy('name')
+            ->get();
+    }
+
+    /**
+     * Find a team (the Group model) on a page by its slug.
+     *
+     * Only an organization page has teams beneath it; a personal booking page
+     * has none, so it never resolves one.
+     */
+    public function group(User|Team $page, string $slug): ?Group
+    {
+        if (! $page instanceof Team) {
+            return null;
+        }
+
+        return Group::query()
+            ->where('team_id', $page->id)
+            ->where('slug', $slug)
+            ->first();
+    }
+
+    /**
+     * Get the event types listed on a team's own landing page.
+     *
+     * @return Collection<int, EventType>
+     */
+    public function eventTypesForGroup(Group $group): Collection
+    {
+        return $this->query($group->team)
+            ->where('is_hidden', false)
+            ->where('group_id', $group->id)
             ->orderBy('name')
             ->get();
     }

@@ -377,3 +377,19 @@ test('an invitee who picks no timezone is recorded in the configured default', f
 
     expect(Booking::first()->invitee_timezone)->toBe('America/Chicago');
 });
+
+/*
+ * An invitee is offered no self-service reschedule or cancel: changes go
+ * through the organizer. The routes themselves stay reachable -- the host's
+ * Meetings page uses them, and links already emailed must not start 404ing.
+ */
+test('the invitee confirmation email offers no reschedule or cancel link', function () {
+    $booking = Booking::factory()->create();
+
+    $mail = (new BookingConfirmed($booking))->toMail(new AnonymousNotifiable);
+
+    $body = $mail->actionText.' '.implode(' ', array_merge($mail->introLines, $mail->outroLines));
+
+    expect($body)->not->toContain('Reschedule')
+        ->and($body)->not->toContain('Cancel this meeting');
+});

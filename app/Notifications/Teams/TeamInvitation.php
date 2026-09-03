@@ -36,19 +36,28 @@ class TeamInvitation extends Notification implements ShouldQueue
     public function toMail(object $notifiable): MailMessage
     {
         $team = $this->invitation->team;
-        $inviter = $this->invitation->inviter;
 
+        /*
+         * The invitation deliberately does not name whoever sent it. Who
+         * issued an invitation is an internal detail of the organization, and
+         * the recipient only needs to know which organization is asking.
+         *
+         * One button for everyone: the join route decides what the click means.
+         * An address with no account yet is created and signed in on the spot;
+         * one that already has an account is sent to sign in, since a link from
+         * an inbox must not walk past that account's password and second
+         * factor.
+         */
         return (new MailMessage)
             ->subject(__("You've been invited to join :teamName", ['teamName' => $team->name]))
-            ->line(__(':inviterName has invited you to join the :teamName organization.', [
-                'inviterName' => $inviter->name,
+            ->line(__('You have been invited to join the :teamName organization.', [
                 'teamName' => $team->name,
             ]))
-            ->line(__('Log in and visit your dashboard to accept or decline this invitation.'))
             ->action(
-                __('Log in'),
-                route('login', ['invitation' => $this->invitation->code]),
-            );
+                __('Join Now'),
+                route('invitations.join', ['invitation' => $this->invitation->code]),
+            )
+            ->line(__('This invitation expires in three days and can only be used once.'));
     }
 
     /**

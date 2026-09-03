@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { Head, router, setLayoutProps, useForm } from '@inertiajs/vue3';
-import { Pencil, Plus, Trash2, Users } from '@lucide/vue';
+import { Link2, Pencil, Plus, Trash2, Users } from '@lucide/vue';
 import { ref } from 'vue';
+import { toast } from 'vue-sonner';
 import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
 import HostPriorityList from '@/components/scheduling/HostPriorityList.vue';
@@ -36,6 +37,7 @@ type Group = {
     name: string;
     description: string | null;
     eventTypeCount: number;
+    bookingUrl: string;
     members: Member[];
     memberIds: number[];
 };
@@ -49,6 +51,11 @@ type Props = {
 defineProps<Props>();
 
 const { teamSlug } = useCurrentTeam();
+
+const copyLink = async (url: string) => {
+    await navigator.clipboard.writeText(url);
+    toast.success('Booking link copied');
+};
 
 const editing = ref<Group | null>(null);
 const panelOpen = ref(false);
@@ -170,6 +177,14 @@ setLayoutProps({
                     >
                         <Pencil class="size-3.5" /> Edit
                     </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        :data-test="`copy-group-link-${group.id}`"
+                        @click="copyLink(group.bookingUrl)"
+                    >
+                        <Link2 class="size-3.5" /> Copy link
+                    </Button>
                     <div class="flex-1" />
                     <Button
                         variant="ghost"
@@ -190,8 +205,8 @@ setLayoutProps({
             <Users class="mx-auto mb-3 size-8 opacity-50" />
             <p>No teams yet.</p>
             <p class="mt-1 text-sm">
-                Build a team once — Leasing, Maintenance — then point an
-                event type at it and everyone in it hosts, in priority order.
+                Build a team once — Leasing, Maintenance — then point an event
+                type at it and everyone in it hosts, in priority order.
             </p>
             <Button v-if="canManage" class="mt-4" @click="openCreate">
                 Create a team

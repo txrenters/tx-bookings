@@ -10,7 +10,6 @@ import {
     Users,
 } from '@lucide/vue';
 import { computed } from 'vue';
-import { Button } from '@/components/ui/button';
 
 type Props = {
     booking: {
@@ -87,7 +86,9 @@ const isCanceled = computed(
 
             <dl class="space-y-5 p-8 text-sm">
                 <div>
-                    <dt class="text-xs font-semibold text-muted-foreground uppercase">
+                    <dt
+                        class="text-xs font-semibold text-muted-foreground uppercase"
+                    >
                         Event
                     </dt>
                     <dd class="mt-1 font-semibold" data-wrap-anywhere>
@@ -95,7 +96,9 @@ const isCanceled = computed(
                     </dd>
                 </div>
                 <div>
-                    <dt class="text-xs font-semibold text-muted-foreground uppercase">
+                    <dt
+                        class="text-xs font-semibold text-muted-foreground uppercase"
+                    >
                         Who
                     </dt>
                     <dd class="mt-1" data-wrap-anywhere>
@@ -166,13 +169,17 @@ const isCanceled = computed(
                     </dd>
                 </div>
                 <div v-for="answer in booking.answers" :key="answer.label">
-                    <dt class="text-xs font-semibold text-muted-foreground uppercase">
+                    <dt
+                        class="text-xs font-semibold text-muted-foreground uppercase"
+                    >
                         {{ answer.label }}
                     </dt>
                     <dd class="mt-1" data-wrap-anywhere>{{ answer.answer }}</dd>
                 </div>
                 <div v-if="booking.cancellationReason">
-                    <dt class="text-xs font-semibold text-muted-foreground uppercase">
+                    <dt
+                        class="text-xs font-semibold text-muted-foreground uppercase"
+                    >
                         Reason
                     </dt>
                     <dd class="mt-1" data-wrap-anywhere>
@@ -180,24 +187,6 @@ const isCanceled = computed(
                     </dd>
                 </div>
             </dl>
-
-            <div
-                v-if="booking.isChangeable"
-                class="flex flex-col gap-3 border-t border-border bg-muted/50 p-6 sm:flex-row"
-            >
-                <Button
-                    variant="outline"
-                    class="flex-1 cursor-pointer bg-card font-semibold"
-                    as-child
-                >
-                    <a :href="booking.rescheduleUrl">Reschedule</a>
-                </Button>
-                <Button variant="ghost" class="flex-1 cursor-pointer" as-child>
-                    <a :href="booking.cancelUrl" data-test="cancel-link">
-                        Cancel
-                    </a>
-                </Button>
-            </div>
         </div>
     </div>
 </template>

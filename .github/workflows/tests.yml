@@ -13,6 +13,30 @@ jobs:
   ci:
     runs-on: ubuntu-latest
 
+    # phpunit.xml runs the suite against MySQL, not sqlite, because that is what
+    # production runs -- strict mode, real column types and the ONLY_FULL_GROUP_BY
+    # behaviour the availability queries depend on all differ under sqlite.
+    # ubuntu-latest ships no running MySQL, so the suite needs one here.
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          # Matches DB_USERNAME=root / empty DB_PASSWORD in .env.example, which
+          # `composer setup` copies to .env.
+          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+          # The database `composer setup` migrates. The test database is created
+          # in a step below -- the image only seeds one.
+          MYSQL_DATABASE: tx_bookings
+        ports:
+          - 3306:3306
+        # Without this the first step racing MySQL's startup fails with
+        # "Can't connect to local MySQL server", intermittently.
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -22,7 +46,11 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
-          php-version: '8.5'
+          # 8.4, not 8.5: this is the version the runtime image in the Dockerfile
+          # ships. Local development runs 8.5, so pinning 8.5 here would test a
+          # version that never reaches production and let an 8.5-only feature
+          # through to a container that cannot run it.
+          php-version: '8.4'
           tools: composer:v2
           coverage: none
 
@@ -30,6 +58,11 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
+
+      - name: Create the test database
+        # phpunit.xml points DB_DATABASE at tx_bookings_test. The service image
+        # creates only the one database named in MYSQL_DATABASE.
+        run: mysql -h 127.0.0.1 -P 3306 -u root -e 'CREATE DATABASE IF NOT EXISTS tx_bookings_test;'
 
       - name: Setup Application
         run: composer setup

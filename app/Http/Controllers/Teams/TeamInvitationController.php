@@ -2,15 +2,19 @@
 
 namespace App\Http\Controllers\Teams;
 
+use App\Actions\Teams\JoinTeamFromInvitation;
 use App\Enums\TeamRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Teams\CreateTeamInvitationRequest;
 use App\Http\Requests\Teams\RespondToTeamInvitationRequest;
 use App\Models\Team;
 use App\Models\TeamInvitation;
+use App\Models\User;
 use App\Notifications\Teams\TeamInvitation as TeamInvitationNotification;
 use App\Services\Activity\ActivityLogger;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Notification;
@@ -70,6 +74,57 @@ class TeamInvitationController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Invitation cancelled.')]);
 
         return to_route('teams.edit', ['team' => $team->slug]);
+    }
+
+    /**
+     * Join straight from the emailed link.
+     *
+     * The one-click path: for an address with no account yet this creates one,
+     * signs the invitee in and accepts the invitation in a single request, so
+     * there is no form to fill in and no password to invent.
+     *
+     * An address that ALREADY has an account is sent to sign in instead, and is
+     * deliberately not signed in automatically. That account may hold a
+     * password and a second factor, and honouring a link from an inbox as proof
+     * of identity would let anyone holding the email walk past both.
+     */
+    public function join(Request $request, TeamInvitation $invitation, JoinTeamFromInvitation $joinTeam): RedirectResponse
+    {
+        if (! $invitation->isPending()) {
+            return to_route('login')->withErrors([
+                'email' => __('This invitation has expired or has already been used.'),
+            ]);
+        }
+
+        $existing = User::query()
+            ->whereRaw('lower(email) = ?', [mb_strtolower($invitation->email)])
+            ->first();
+
+        if ($existing !== null) {
+            return redirect()->route('login', ['invitation' => $invitation->code]);
+        }
+
+        $user = $joinTeam->handle($invitation);
+
+        Auth::login($user);
+
+        // A session that existed before sign-in must not survive it.
+        $request->session()->regenerate();
+
+        app(ActivityLogger::class)->record(
+            $invitation->team,
+            'invitation.accepted',
+            $user->email.' joined the organization',
+            $invitation,
+            ['role' => $invitation->role->value],
+        );
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => __('Welcome! Set a password in Settings so you can sign in again.'),
+        ]);
+
+        return to_route('dashboard', ['current_team' => $invitation->team->slug]);
     }
 
     /**

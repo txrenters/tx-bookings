@@ -173,6 +173,22 @@ watch(
     },
 );
 
+/**
+ * Who a new event type should belong to by default.
+ *
+ * Normally the person creating it, but a super admin belongs to no
+ * organization, so defaulting to them submits a user_id that is not in
+ * team_members and the save fails with "The selected user id is invalid".
+ * Fall back to the first real member instead.
+ */
+const defaultHostId = computed(
+    () =>
+        props.teamMembers.find((member) => member.id === props.currentUser.id)
+            ?.id ??
+        props.teamMembers[0]?.id ??
+        props.currentUser.id,
+);
+
 // Reset each time the panel is opened for a freshly chosen kind.
 watch(
     () => props.kind,
@@ -184,11 +200,11 @@ watch(
         form.reset();
         form.clearErrors();
         form.kind = kind;
-        form.user_id = props.currentUser.id;
+        form.user_id = defaultHostId.value;
         form.group_id = null;
         form.seats_per_slot = kind === 'group' ? 5 : 1;
         form.host_ids = props.kinds.find((k) => k.value === kind)?.requiresTeam
-            ? [props.currentUser.id]
+            ? [defaultHostId.value]
             : [];
         form.availability_schedule_id =
             props.schedules.find((schedule) => schedule.isDefault)?.id ??
@@ -440,8 +456,8 @@ const submit = () => {
                             v-if="selectedGroup"
                             class="text-xs text-muted-foreground"
                         >
-                            Everyone in {{ selectedGroup.name }} hosts this,
-                            in that team's order:
+                            Everyone in {{ selectedGroup.name }} hosts this, in
+                            that team's order:
                             {{ selectedGroup.memberNames.join(', ') }}.
                         </p>
 

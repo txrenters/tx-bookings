@@ -8,10 +8,13 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
  * Keeps wall clock columns in a single H:i:s shape.
  *
  * The UI posts "09:00", Calendly returns "09:00", and the seeded defaults use
- * "09:00:00". SQLite stores a time column verbatim, so without normalising
- * here the same field arrives in two shapes and anything parsing it strictly
- * blows up. Normalising on the model means every writer — request, action,
- * importer, factory — lands the same value.
+ * "09:00:00", so the same field arrives in two shapes and anything parsing it
+ * strictly blows up. Normalising on the model means every writer — request,
+ * action, importer, factory — lands the same value.
+ *
+ * Doing it here rather than leaning on the database is deliberate: MySQL would
+ * pad a TIME column on write, but only once the row is saved, which leaves an
+ * unsaved model and a freshly loaded one disagreeing about the same field.
  */
 trait NormalisesWallClockTimes
 {
