@@ -4,19 +4,20 @@ namespace Database\Seeders;
 
 use App\Actions\Scheduling\ApplyDefaultHolidays;
 use App\Actions\Scheduling\CreateDefaultAvailability;
+use App\Actions\Teams\CreateTeam;
 use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
-
     /**
-     * The default accounts for local use; everyone logs in with "password".
+     * The default accounts for first logins; everyone starts with "password".
      *
      * Registration is invitation-only, so the first accounts have to come
-     * from here. Further teammates are invited from inside the app.
+     * from here; further teammates are invited from inside the app. Built
+     * without factories on purpose: Faker is a dev dependency, and this
+     * seeder also runs on production via the seed_default_users migration.
      *
      * @var array<int, array{name: string, email: string}>
      */
@@ -37,11 +38,18 @@ class DatabaseSeeder extends Seeder
                 continue;
             }
 
-            $user = User::factory()->create($defaults);
+            DB::transaction(function () use ($defaults) {
+                $user = User::create([...$defaults, 'password' => 'password']);
 
-            // Mirror registration, so the account is bookable right away.
-            app(CreateDefaultAvailability::class)->handle($user);
-            app(ApplyDefaultHolidays::class)->handle($user);
+                // Seeded accounts skip the verification email round trip.
+                $user->forceFill(['email_verified_at' => now()])->save();
+
+                // Mirror registration (CreateNewUser), so the account is
+                // bookable right away.
+                app(CreateTeam::class)->handle($user, $user->name."'s Organization", isPersonal: true);
+                app(CreateDefaultAvailability::class)->handle($user);
+                app(ApplyDefaultHolidays::class)->handle($user);
+            });
         }
     }
 }
