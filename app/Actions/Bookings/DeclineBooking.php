@@ -45,7 +45,7 @@ class DeclineBooking
         $this->activity->record(
             $booking->team,
             'booking.declined',
-            $actor->name.' declined '.($booking->eventType?->name ?? 'a meeting').' with '.$booking->name,
+            $actor->name.' declined '.($booking->eventType->name ?? 'a meeting').' with '.$booking->name,
             $booking,
             ['reason' => $reason],
             $actor,

@@ -28,8 +28,8 @@ class DuplicateEventType
 
             foreach ($eventType->hosts as $host) {
                 $copy->hosts()->attach($host->id, [
-                    'availability_schedule_id' => $host->pivot->availability_schedule_id,
-                    'priority' => $host->pivot->priority,
+                    'availability_schedule_id' => $host->pivot?->getAttribute('availability_schedule_id'),
+                    'priority' => $host->pivot?->getAttribute('priority'),
                 ]);
             }
 

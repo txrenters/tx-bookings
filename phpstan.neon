@@ -11,3 +11,8 @@ parameters:
         - routes/
 
     level: 7
+
+    # Eloquent @property-read docblocks describe the usual shape, not a
+    # guarantee — a soft-deleted event type leaves booking->eventType null —
+    # so defensive null handling must not be reported as redundant.
+    treatPhpDocTypesAsCertain: false

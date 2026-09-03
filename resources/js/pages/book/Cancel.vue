@@ -51,7 +51,9 @@ const submit = () => {
 
             <dl class="space-y-5 p-8 text-sm">
                 <div>
-                    <dt class="text-xs font-semibold text-muted-foreground uppercase">
+                    <dt
+                        class="text-xs font-semibold text-muted-foreground uppercase"
+                    >
                         Event
                     </dt>
                     <dd class="mt-1 font-semibold" data-wrap-anywhere>
@@ -60,7 +62,9 @@ const submit = () => {
                     </dd>
                 </div>
                 <div>
-                    <dt class="text-xs font-semibold text-muted-foreground uppercase">
+                    <dt
+                        class="text-xs font-semibold text-muted-foreground uppercase"
+                    >
                         When
                     </dt>
                     <dd class="mt-1 font-medium" data-numeric>

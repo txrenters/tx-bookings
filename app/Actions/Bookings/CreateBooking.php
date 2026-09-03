@@ -94,7 +94,7 @@ class CreateBooking
                 ? $this->notify->confirmed($booking)
                 : $this->notify->pending($booking);
 
-            $eventTypeName = $booking->eventType?->name ?? 'a meeting';
+            $eventTypeName = $booking->eventType->name ?? 'a meeting';
             $properties = ['startsAt' => $booking->starts_at->toIso8601String(), 'email' => $booking->email];
 
             if (! $booking->status->isConfirmed()) {

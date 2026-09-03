@@ -120,7 +120,9 @@ const toggle = (id: string) => {
             <div class="flex flex-wrap items-center gap-2">
                 <Select
                     :model-value="file"
-                    @update:model-value="(value) => reload({ file: value as string })"
+                    @update:model-value="
+                        (value) => reload({ file: value as string })
+                    "
                 >
                     <SelectTrigger
                         class="w-60 cursor-pointer"
@@ -142,7 +144,9 @@ const toggle = (id: string) => {
 
                 <Select
                     :model-value="level"
-                    @update:model-value="(value) => reload({ level: value as string })"
+                    @update:model-value="
+                        (value) => reload({ level: value as string })
+                    "
                 >
                     <SelectTrigger
                         class="w-40 cursor-pointer"
@@ -233,7 +237,7 @@ const toggle = (id: string) => {
                     <pre
                         v-if="expanded === entry.id && entry.context"
                         class="max-h-80 overflow-auto border-t border-border bg-muted px-4 py-3 font-mono text-xs"
-                    >{{ entry.context }}</pre>
+                        >{{ entry.context }}</pre>
                 </li>
             </ul>
 

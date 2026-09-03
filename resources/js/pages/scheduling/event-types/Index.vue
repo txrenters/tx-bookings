@@ -550,9 +550,7 @@ setLayoutProps({
                                         >
                                             {{ eventType.durationMinutes }} min
                                             &middot;
-                                            {{
-                                                eventType.locationLabel
-                                            }}
+                                            {{ eventType.locationLabel }}
                                             &middot;
                                             {{ eventType.kindLabel }}
                                             <template

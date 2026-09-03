@@ -104,7 +104,9 @@ const subline = computed(() => {
 
             <dl class="space-y-5 p-8 text-sm">
                 <div>
-                    <dt class="text-xs font-semibold text-muted-foreground uppercase">
+                    <dt
+                        class="text-xs font-semibold text-muted-foreground uppercase"
+                    >
                         Event
                     </dt>
                     <dd class="mt-1 font-semibold" data-wrap-anywhere>
@@ -112,7 +114,9 @@ const subline = computed(() => {
                     </dd>
                 </div>
                 <div>
-                    <dt class="text-xs font-semibold text-muted-foreground uppercase">
+                    <dt
+                        class="text-xs font-semibold text-muted-foreground uppercase"
+                    >
                         Who
                     </dt>
                     <dd class="mt-1" data-wrap-anywhere>
@@ -183,13 +187,17 @@ const subline = computed(() => {
                     </dd>
                 </div>
                 <div v-for="answer in booking.answers" :key="answer.label">
-                    <dt class="text-xs font-semibold text-muted-foreground uppercase">
+                    <dt
+                        class="text-xs font-semibold text-muted-foreground uppercase"
+                    >
                         {{ answer.label }}
                     </dt>
                     <dd class="mt-1" data-wrap-anywhere>{{ answer.answer }}</dd>
                 </div>
                 <div v-if="booking.cancellationReason">
-                    <dt class="text-xs font-semibold text-muted-foreground uppercase">
+                    <dt
+                        class="text-xs font-semibold text-muted-foreground uppercase"
+                    >
                         Reason
                     </dt>
                     <dd class="mt-1" data-wrap-anywhere>

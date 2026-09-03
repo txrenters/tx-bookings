@@ -94,7 +94,9 @@ const countdown = computed(() => {
         return '';
     }
 
-    const minutes = Math.round((Date.parse(hero.startsAt) - now.value) / 60_000);
+    const minutes = Math.round(
+        (Date.parse(hero.startsAt) - now.value) / 60_000,
+    );
 
     if (minutes < 1) {
         return 'starting now';
@@ -226,11 +228,7 @@ const quickActions = computed(() =>
                     Here's what's happening with your schedule today.
                 </p>
             </div>
-            <Button
-                v-if="teamSlug"
-                class="cursor-pointer font-medium"
-                as-child
-            >
+            <Button v-if="teamSlug" class="cursor-pointer font-medium" as-child>
                 <Link :href="schedulingIndex(teamSlug)">
                     <Plus class="size-4" aria-hidden="true" />
                     Create event type

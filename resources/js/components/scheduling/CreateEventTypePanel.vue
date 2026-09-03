@@ -440,8 +440,8 @@ const submit = () => {
                             v-if="selectedGroup"
                             class="text-xs text-muted-foreground"
                         >
-                            Everyone in {{ selectedGroup.name }} hosts this,
-                            in that team's order:
+                            Everyone in {{ selectedGroup.name }} hosts this, in
+                            that team's order:
                             {{ selectedGroup.memberNames.join(', ') }}.
                         </p>
 

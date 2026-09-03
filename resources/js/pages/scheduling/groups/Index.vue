@@ -190,8 +190,8 @@ setLayoutProps({
             <Users class="mx-auto mb-3 size-8 opacity-50" />
             <p>No teams yet.</p>
             <p class="mt-1 text-sm">
-                Build a team once — Leasing, Maintenance — then point an
-                event type at it and everyone in it hosts, in priority order.
+                Build a team once — Leasing, Maintenance — then point an event
+                type at it and everyone in it hosts, in priority order.
             </p>
             <Button v-if="canManage" class="mt-4" @click="openCreate">
                 Create a team

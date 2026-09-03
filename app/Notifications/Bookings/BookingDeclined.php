@@ -64,6 +64,6 @@ class BookingDeclined extends Notification implements ShouldQueue
      */
     protected function inAppBody(Booking $booking): string
     {
-        return ($booking->eventType?->name ?? 'A meeting').' with '.$booking->name.' was declined.';
+        return ($booking->eventType->name ?? 'A meeting').' with '.$booking->name.' was declined.';
     }
 }

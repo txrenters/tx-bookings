@@ -40,7 +40,7 @@ class ApproveBooking
         $this->activity->record(
             $booking->team,
             'booking.approved',
-            $actor->name.' approved '.($booking->eventType?->name ?? 'a meeting').' with '.$booking->name,
+            $actor->name.' approved '.($booking->eventType->name ?? 'a meeting').' with '.$booking->name,
             $booking,
             ['startsAt' => $booking->starts_at->toIso8601String()],
             $actor,

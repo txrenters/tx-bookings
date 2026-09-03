@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
+use RuntimeException;
 
 class TeamController extends Controller
 {
@@ -222,6 +223,10 @@ class TeamController extends Controller
         }
 
         $path = $request->file('logo')->store('team-logos', 'public');
+
+        if ($path === false) {
+            throw new RuntimeException('The team logo could not be stored.');
+        }
 
         $this->deleteLogo($team->logo_path);
 

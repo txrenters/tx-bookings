@@ -105,13 +105,15 @@ onUnmounted(() => {
                 :class="
                     props.inHeader
                         ? 'h-9 gap-2 px-2'
-                        : 'h-12 w-full justify-start gap-2 px-2 has-[>svg]:px-2 group-data-[collapsible=icon]:justify-center data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground'
+                        : 'h-12 w-full justify-start gap-2 px-2 group-data-[collapsible=icon]:justify-center has-[>svg]:px-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground'
                 "
             >
                 <span
                     :class="[
                         'flex shrink-0 items-center justify-center rounded-lg bg-sidebar-primary font-semibold text-sidebar-primary-foreground',
-                        props.inHeader ? 'size-6 text-[10px]' : 'size-8 text-xs',
+                        props.inHeader
+                            ? 'size-6 text-[10px]'
+                            : 'size-8 text-xs',
                     ]"
                     aria-hidden="true"
                 >
@@ -167,9 +169,7 @@ onUnmounted(() => {
                 :key="team.id"
                 data-test="team-switcher-item"
                 class="cursor-pointer gap-2 p-2"
-                :aria-current="
-                    currentTeam?.id === team.id ? 'true' : undefined
-                "
+                :aria-current="currentTeam?.id === team.id ? 'true' : undefined"
                 @click="switchTeam(team)"
             >
                 <span

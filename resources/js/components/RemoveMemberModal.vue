@@ -47,7 +47,8 @@ const removeMember = () => {
                 <DialogTitle>Remove member</DialogTitle>
                 <DialogDescription>
                     Are you sure you want to remove
-                    <strong>{{ props.member?.name }}</strong> from this organization?
+                    <strong>{{ props.member?.name }}</strong> from this
+                    organization?
                 </DialogDescription>
             </DialogHeader>
 

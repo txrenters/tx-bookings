@@ -398,7 +398,7 @@ class CalendlyImporter
             $booking->save();
 
             // The host pool on the booking is what the meetings list shows.
-            $hostIds = collect($remote['event_memberships'] ?? [])
+            $hostIds = collect((array) ($remote['event_memberships'] ?? []))
                 ->map(fn (array $m) => $this->userForEmail($m['user_email'] ?? null)?->id)
                 ->filter()
                 ->unique()
@@ -586,6 +586,8 @@ class CalendlyImporter
 
     /**
      * Tally one outcome.
+     *
+     * @param  'imported'|'updated'|'skipped'  $outcome
      */
     protected function count(string $resource, string $outcome): void
     {

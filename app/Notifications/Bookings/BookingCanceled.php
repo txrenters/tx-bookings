@@ -64,6 +64,6 @@ class BookingCanceled extends Notification implements ShouldQueue
      */
     protected function inAppBody(Booking $booking): string
     {
-        return $booking->name.' canceled '.($booking->eventType?->name ?? 'a meeting').'.';
+        return $booking->name.' canceled '.($booking->eventType->name ?? 'a meeting').'.';
     }
 }

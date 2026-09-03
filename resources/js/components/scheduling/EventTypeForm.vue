@@ -611,7 +611,8 @@ const setOptions = (question: Record<string, any>, value: string) => {
                 <span class="text-sm">
                     Require confirmation
                     <span class="block text-muted-foreground">
-                        New bookings wait as requests until a host approves them.
+                        New bookings wait as requests until a host approves
+                        them.
                     </span>
                 </span>
                 <Switch

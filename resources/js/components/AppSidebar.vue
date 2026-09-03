@@ -145,7 +145,11 @@ const footerNavItems = computed<NavItem[]>(() => {
         </SidebarContent>
 
         <SidebarFooter>
-            <NavMain v-if="adminNavItems.length" :items="adminNavItems" label="Admin" />
+            <NavMain
+                v-if="adminNavItems.length"
+                :items="adminNavItems"
+                label="Admin"
+            />
             <NavFooter v-if="footerNavItems.length" :items="footerNavItems" />
             <NavUser />
         </SidebarFooter>

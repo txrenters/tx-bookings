@@ -33,7 +33,7 @@ class SaveEventType
             if (isset($attributes['slug'])) {
                 $attributes['slug'] = EventType::generateUniqueSlug(
                     $attributes['slug'],
-                    $eventType?->team_id ?? $team->id,
+                    $eventType->team_id ?? $team->id,
                     $eventType?->id,
                 );
             }

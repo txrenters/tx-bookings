@@ -113,7 +113,10 @@ const range = computed(() => {
                 description="Everything that has happened in this organization"
             />
 
-            <Select :model-value="kind" @update:model-value="(value) => applyKind(value as string)">
+            <Select
+                :model-value="kind"
+                @update:model-value="(value) => applyKind(value as string)"
+            >
                 <SelectTrigger
                     class="w-48 cursor-pointer"
                     data-test="activity-filter"
@@ -217,8 +220,8 @@ const range = computed(() => {
             <p
                 class="mx-auto mt-1 max-w-sm text-sm leading-relaxed text-muted-foreground"
             >
-                Bookings, event type changes and member updates all show up
-                here as they happen.
+                Bookings, event type changes and member updates all show up here
+                as they happen.
             </p>
         </div>
     </div>

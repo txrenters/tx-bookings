@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { Head, router, setLayoutProps, useForm } from '@inertiajs/vue3';
-import { Check, Clock, RotateCcw, Search, SlidersHorizontal } from '@lucide/vue';
+import {
+    Check,
+    Clock,
+    RotateCcw,
+    Search,
+    SlidersHorizontal,
+} from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
 import MeetingDetailPanel from '@/components/scheduling/MeetingDetailPanel.vue';
 import ScopePicker from '@/components/scheduling/ScopePicker.vue';
