@@ -118,22 +118,28 @@ defineProps<{
         -->
         <div
             v-if="teamInvitation"
-            class="text-center text-sm text-muted-foreground"
+            class="space-y-1 text-center text-sm text-muted-foreground"
         >
-            Don't have an account yet?
-            <TextLink
-                :href="
-                    register({
-                        query: {
-                            invitation: teamInvitation.code,
-                        },
-                    })
-                "
-                :tabindex="5"
-                data-test="register-link"
-            >
-                Create one
-            </TextLink>
+            <p>
+                Don't have an account yet?
+                <TextLink
+                    :href="
+                        register({
+                            query: {
+                                invitation: teamInvitation.code,
+                            },
+                        })
+                    "
+                    :tabindex="5"
+                    data-test="register-link"
+                >
+                    Create one
+                </TextLink>
+            </p>
+            <p class="text-xs">
+                Already have an account but no password? Use "Forgot password?"
+                above.
+            </p>
         </div>
     </Form>
 </template>

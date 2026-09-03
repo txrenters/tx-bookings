@@ -74,6 +74,24 @@ test('an accepted invitation cannot be reused to register', function () {
     $this->assertGuest();
 });
 
+test('registering an email that already has an account points at the password reset', function () {
+    User::factory()->create(['email' => 'shell@example.com']);
+    invitationFor('shell@example.com');
+
+    $this->post(route('register.store'), [
+        'name' => 'Shell Account',
+        'email' => 'shell@example.com',
+        'password' => 'password',
+        'password_confirmation' => 'password',
+    ])->assertSessionHasErrors([
+        'email' => 'This address already has an account. Use "Forgot password?" on the log-in page to set a password.',
+    ]);
+
+    $this->assertGuest();
+
+    expect(User::where('email', 'shell@example.com')->count())->toBe(1);
+});
+
 test('the invitation check ignores address casing', function () {
     invitationFor('Mixed.Case@Example.com');
 

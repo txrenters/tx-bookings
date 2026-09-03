@@ -64,6 +64,51 @@ test('password can be reset with valid token', function () {
     });
 });
 
+test('resetting the password verifies an unverified email', function () {
+    Notification::fake();
+
+    // Imported shell accounts arrive unverified; the reset link proves the
+    // same mailbox ownership the verification email would.
+    $user = User::factory()->unverified()->create();
+
+    $this->post(route('password.email'), ['email' => $user->email]);
+
+    Notification::assertSentTo($user, ResetPassword::class, function ($notification) use ($user) {
+        $this->post(route('password.update'), [
+            'token' => $notification->token,
+            'email' => $user->email,
+            'password' => 'new-password-123',
+            'password_confirmation' => 'new-password-123',
+        ])->assertSessionHasNoErrors();
+
+        expect($user->fresh()->email_verified_at)->not->toBeNull();
+
+        return true;
+    });
+});
+
+test('resetting the password keeps the original verification timestamp', function () {
+    Notification::fake();
+
+    $user = User::factory()->create(['email_verified_at' => '2026-01-05 10:00:00']);
+
+    $this->post(route('password.email'), ['email' => $user->email]);
+
+    Notification::assertSentTo($user, ResetPassword::class, function ($notification) use ($user) {
+        $this->post(route('password.update'), [
+            'token' => $notification->token,
+            'email' => $user->email,
+            'password' => 'new-password-123',
+            'password_confirmation' => 'new-password-123',
+        ])->assertSessionHasNoErrors();
+
+        expect($user->fresh()->email_verified_at->toDateTimeString())
+            ->toBe('2026-01-05 10:00:00');
+
+        return true;
+    });
+});
+
 test('password cannot be reset with invalid token', function () {
     $user = User::factory()->create();
 

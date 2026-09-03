@@ -36,6 +36,14 @@ class CreateNewUser implements CreatesNewUsers
         Validator::make($input, [
             ...$this->profileRules(),
             'password' => $this->passwordRules(),
+        ], [
+            /*
+             * The Calendly importer creates shell accounts with unusable
+             * passwords, so an invited person may "exist" without ever having
+             * registered. The default unique message reads as a dead end;
+             * point them at the flow that actually gets them in.
+             */
+            'email.unique' => __('This address already has an account. Use "Forgot password?" on the log-in page to set a password.'),
         ])->after(function (ValidatorInstance $validator) use ($input) {
             /**
              * Self-service signup is closed: this is an internal system, so an
