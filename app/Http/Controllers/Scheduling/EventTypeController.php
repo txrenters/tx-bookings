@@ -49,7 +49,7 @@ class EventTypeController extends Controller
             $scopes->userIds($scope, $current_team, $user),
             'hosts',
         )
-            ->with(['owner:id,name,booking_slug', 'hosts:id,name', 'group.members:id,name', 'team:id,name,slug'])
+            ->with(['owner:id,name,booking_slug', 'hosts:id,name', 'group.members:id,name', 'team:id,name,slug', 'availabilitySchedule:id,name'])
             ->withCount(['bookings' => fn ($query) => $query->active()->upcoming()])
             ->orderBy('name')
             ->get();
@@ -64,6 +64,7 @@ class EventTypeController extends Controller
             'eventTypes' => $eventTypes->map(fn (EventType $eventType) => $this->toListItem(
                 $eventType,
                 $summaries->get($eventType->id, 'No available days or times'),
+                $user,
             )),
             'canCreate' => $user->can('create', [EventType::class, $current_team]),
             'scope' => $scope,
@@ -346,9 +347,12 @@ class EventTypeController extends Controller
     /**
      * Present an event type for the listing.
      *
+     * The detail panel reads from the same row, so this carries the settings it
+     * summarises rather than fetching the record again when a row is opened.
+     *
      * @return array<string, mixed>
      */
-    protected function toListItem(EventType $eventType, string $availabilitySummary): array
+    protected function toListItem(EventType $eventType, string $availabilitySummary, User $user): array
     {
         return [
             'id' => $eventType->id,
@@ -362,6 +366,7 @@ class EventTypeController extends Controller
             'availabilitySummary' => $availabilitySummary,
             'isShared' => $eventType->kind->hasHostPool(),
             'locationLabel' => $this->locationLabel($eventType),
+            'locationDetail' => $eventType->location_detail,
             'isActive' => $eventType->is_active,
             'isHidden' => $eventType->is_hidden,
             'upcomingBookings' => $eventType->bookings_count,
@@ -370,6 +375,20 @@ class EventTypeController extends Controller
             'groupName' => $eventType->group?->name,
             'hosts' => $this->hostBadges($eventType),
             'publicUrl' => $this->publicUrl($eventType),
+            'minimumNoticeMinutes' => $eventType->minimum_notice_minutes,
+            'bufferBeforeMinutes' => $eventType->buffer_before_minutes,
+            'bufferAfterMinutes' => $eventType->buffer_after_minutes,
+            'slotIntervalMinutes' => $eventType->slot_interval_minutes,
+            'dateRangeType' => $eventType->date_range_type->value,
+            'rollingDays' => $eventType->rolling_days,
+            'rangeStartsOn' => $eventType->range_starts_on?->toDateString(),
+            'rangeEndsOn' => $eventType->range_ends_on?->toDateString(),
+            'seatsPerSlot' => $eventType->seats_per_slot,
+            'dailyBookingLimit' => $eventType->daily_booking_limit,
+            'requiresConfirmation' => $eventType->requires_confirmation,
+            'scheduleName' => $eventType->availabilitySchedule?->name,
+            'canUpdate' => $user->can('update', $eventType),
+            'canDelete' => $user->can('delete', $eventType),
         ];
     }
 

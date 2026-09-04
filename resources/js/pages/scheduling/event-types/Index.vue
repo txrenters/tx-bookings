@@ -23,6 +23,7 @@ import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import MonthCalendar from '@/components/booking/MonthCalendar.vue';
 import CreateEventTypePanel from '@/components/scheduling/CreateEventTypePanel.vue';
+import EventTypeDetailPanel from '@/components/scheduling/EventTypeDetailPanel.vue';
 import ScopePicker from '@/components/scheduling/ScopePicker.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -79,13 +80,29 @@ type EventTypeRow = {
     availabilitySummary: string;
     isShared: boolean;
     locationLabel: string;
+    locationDetail: string | null;
     isActive: boolean;
     isHidden: boolean;
     upcomingBookings: number;
     ownerName: string;
     ownerLandingUrl: string;
+    groupName: string | null;
     hosts: Array<{ id: number; name: string; initial: string }>;
     publicUrl: string;
+    minimumNoticeMinutes: number;
+    bufferBeforeMinutes: number;
+    bufferAfterMinutes: number;
+    slotIntervalMinutes: number | null;
+    dateRangeType: string;
+    rollingDays: number | null;
+    rangeStartsOn: string | null;
+    rangeEndsOn: string | null;
+    seatsPerSlot: number | null;
+    dailyBookingLimit: number | null;
+    requiresConfirmation: boolean;
+    scheduleName: string | null;
+    canUpdate: boolean;
+    canDelete: boolean;
 };
 
 type Kind = {
@@ -138,8 +155,25 @@ const props = defineProps<Props>();
 const { teamSlug } = useCurrentTeam();
 
 const deleting = ref<EventTypeRow | null>(null);
+/** The row whose detail panel is open. */
+const selected = ref<EventTypeRow | null>(null);
 const search = ref('');
 const kindFilter = ref('all');
+
+/**
+ * The detail panel and the delete dialog are each modal layers, and two open at
+ * once fight over the focus trap, which leaves the dialog's buttons unreachable.
+ * Opening the dialog hands off from the panel; dismissing it hands back.
+ */
+const askToDelete = () => {
+    deleting.value = selected.value;
+    selected.value = null;
+};
+
+const dismissDelete = () => {
+    selected.value = deleting.value;
+    deleting.value = null;
+};
 
 const filtered = computed(() =>
     props.eventTypes.filter((eventType) => {
@@ -486,7 +520,12 @@ setLayoutProps({
                                     v-for="eventType in group.eventTypes"
                                     :key="eventType.id"
                                     data-test="event-type-row"
-                                    class="relative flex flex-wrap items-center overflow-hidden rounded-lg border bg-card shadow-flat transition-shadow hover:shadow-raised sm:flex-nowrap"
+                                    class="relative flex flex-wrap items-center overflow-hidden rounded-lg border shadow-flat transition-shadow sm:flex-nowrap"
+                                    :class="
+                                        selected?.id === eventType.id
+                                            ? 'border-primary bg-accent/50'
+                                            : 'bg-card hover:shadow-raised'
+                                    "
                                 >
                                     <span
                                         class="absolute inset-y-0 left-0 w-1.5"
@@ -496,24 +535,31 @@ setLayoutProps({
                                         aria-hidden="true"
                                     />
 
+                                    <!--
+                                      The row carries its own buttons and menu,
+                                      so the click target sits underneath them
+                                      rather than wrapping them.
+                                    -->
+                                    <button
+                                        type="button"
+                                        class="absolute inset-0 z-0 cursor-pointer"
+                                        :aria-label="`View ${eventType.name}`"
+                                        :aria-pressed="
+                                            selected?.id === eventType.id
+                                        "
+                                        :data-test="`open-event-type-${eventType.slug}`"
+                                        @click="selected = eventType"
+                                    />
+
                                     <div
-                                        class="min-w-0 flex-1 basis-full py-3.5 pr-4 pl-5 sm:basis-auto"
+                                        class="pointer-events-none relative z-10 min-w-0 flex-1 basis-full py-3.5 pr-4 pl-5 sm:basis-auto"
                                     >
                                         <div
                                             class="flex flex-wrap items-center gap-2"
                                         >
-                                            <Link
-                                                :href="
-                                                    edit({
-                                                        current_team: teamSlug,
-                                                        event_type:
-                                                            eventType.slug,
-                                                    })
-                                                "
-                                                class="font-semibold hover:underline"
-                                            >
+                                            <span class="font-semibold">
                                                 {{ eventType.name }}
-                                            </Link>
+                                            </span>
                                             <Crown
                                                 v-if="eventType.isShared"
                                                 class="size-3.5 text-muted-foreground"
@@ -579,7 +625,7 @@ setLayoutProps({
                                     </div>
 
                                     <div
-                                        class="hidden shrink-0 -space-x-2 pr-2 sm:flex"
+                                        class="pointer-events-none relative z-10 hidden shrink-0 -space-x-2 pr-2 sm:flex"
                                     >
                                         <span
                                             v-for="host in eventType.hosts.slice(
@@ -601,7 +647,7 @@ setLayoutProps({
                                     </div>
 
                                     <div
-                                        class="flex w-full shrink-0 items-center justify-end gap-1 border-t px-3 py-2 sm:w-auto sm:border-t-0 sm:px-0 sm:py-0 sm:pr-4"
+                                        class="relative z-10 flex w-full shrink-0 items-center justify-end gap-1 border-t px-3 py-2 sm:w-auto sm:border-t-0 sm:px-0 sm:py-0 sm:pr-4"
                                     >
                                         <Button
                                             variant="outline"
@@ -930,7 +976,19 @@ setLayoutProps({
         @close="creatingKind = null"
     />
 
-    <Dialog :open="deleting !== null" @update:open="deleting = null">
+    <EventTypeDetailPanel
+        :event-type="selected"
+        :team-slug="teamSlug"
+        :can-create="canCreate"
+        :copied="copiedSlug !== null && copiedSlug === selected?.slug"
+        @close="selected = null"
+        @copy="selected && copyLink(selected)"
+        @duplicate="selected && duplicateEventType(selected)"
+        @toggle-active="selected && toggleActive(selected)"
+        @delete="askToDelete"
+    />
+
+    <Dialog :open="deleting !== null" @update:open="dismissDelete">
         <DialogContent>
             <DialogHeader>
                 <DialogTitle>Delete {{ deleting?.name }}?</DialogTitle>
@@ -940,7 +998,7 @@ setLayoutProps({
                 </DialogDescription>
             </DialogHeader>
             <DialogFooter>
-                <Button variant="outline" @click="deleting = null">
+                <Button variant="outline" @click="dismissDelete">
                     Keep it
                 </Button>
                 <Button

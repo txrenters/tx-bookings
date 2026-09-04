@@ -416,6 +416,51 @@ test('a pooled event type whose hosts differ reports varying hours', function ()
             ->where('eventTypes.0.isShared', true));
 });
 
+test('the index carries the settings the detail panel summarises', function () {
+    $schedule = AvailabilitySchedule::factory()->for($this->user)->weekdays()->create(['name' => 'Working hours']);
+
+    EventType::factory()->ownedBy($this->user)->create([
+        'availability_schedule_id' => $schedule->id,
+        'minimum_notice_minutes' => 240,
+        'buffer_before_minutes' => 10,
+        'date_range_type' => 'rolling_days',
+        'rolling_days' => 60,
+        'requires_confirmation' => true,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('scheduling.index', ['current_team' => $this->team->slug]))
+        ->assertInertia(fn ($page) => $page
+            ->where('eventTypes.0.minimumNoticeMinutes', 240)
+            ->where('eventTypes.0.bufferBeforeMinutes', 10)
+            ->where('eventTypes.0.dateRangeType', 'rolling_days')
+            ->where('eventTypes.0.rollingDays', 60)
+            ->where('eventTypes.0.requiresConfirmation', true)
+            ->where('eventTypes.0.scheduleName', 'Working hours')
+            ->where('eventTypes.0.canUpdate', true)
+            ->where('eventTypes.0.canDelete', true));
+});
+
+test('the detail panel hides actions from a member who cannot manage the event type', function () {
+    $team = Team::factory()->create();
+    $member = User::factory()->create();
+
+    $team->members()->attach($this->user, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($member, ['role' => TeamRole::Member->value]);
+    $member->switchTeam($team);
+
+    EventType::factory()->create([
+        'team_id' => $team->id,
+        'user_id' => $this->user->id,
+    ]);
+
+    $this->actingAs($member)
+        ->get(route('scheduling.index', ['current_team' => $team->slug]))
+        ->assertInertia(fn ($page) => $page
+            ->where('eventTypes.0.canUpdate', false)
+            ->where('eventTypes.0.canDelete', false));
+});
+
 test('an event type with no hours says so', function () {
     EventType::factory()->ownedBy($this->user)->create();
 
