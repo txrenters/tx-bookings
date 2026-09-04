@@ -100,6 +100,33 @@ const cancelForm = useForm({ reason: '' });
 const declining = ref<Meeting | null>(null);
 const declineForm = useForm({ reason: '' });
 
+/**
+ * The detail panel and these dialogs are each modal layers, and two open at
+ * once fight over the focus trap, which leaves the dialog's fields untypeable.
+ * Opening a dialog hands off from the panel; dismissing it hands back.
+ */
+const askToCancel = () => {
+    canceling.value = selected.value;
+    selected.value = null;
+};
+
+const askToDecline = () => {
+    declining.value = selected.value;
+    selected.value = null;
+};
+
+const dismissCancel = () => {
+    selected.value = canceling.value;
+    canceling.value = null;
+    cancelForm.reset();
+};
+
+const dismissDecline = () => {
+    selected.value = declining.value;
+    declining.value = null;
+    declineForm.reset();
+};
+
 /** Meetings under their day heading, the way the list reads down the page. */
 const days = computed(() => {
     const sections = new Map<
@@ -418,11 +445,11 @@ setLayoutProps({
         :meeting="selected"
         :team-slug="teamSlug"
         @close="selected = null"
-        @cancel="canceling = selected"
-        @decline="declining = selected"
+        @cancel="askToCancel"
+        @decline="askToDecline"
     />
 
-    <Dialog :open="declining !== null" @update:open="declining = null">
+    <Dialog :open="declining !== null" @update:open="dismissDecline">
         <DialogContent>
             <DialogHeader>
                 <DialogTitle>Decline this request?</DialogTitle>
@@ -438,7 +465,7 @@ setLayoutProps({
             </div>
 
             <DialogFooter>
-                <Button variant="outline" @click="declining = null">
+                <Button variant="outline" @click="dismissDecline">
                     Keep it
                 </Button>
                 <Button
@@ -452,7 +479,7 @@ setLayoutProps({
         </DialogContent>
     </Dialog>
 
-    <Dialog :open="canceling !== null" @update:open="canceling = null">
+    <Dialog :open="canceling !== null" @update:open="dismissCancel">
         <DialogContent>
             <DialogHeader>
                 <DialogTitle>Cancel this meeting?</DialogTitle>
@@ -468,7 +495,7 @@ setLayoutProps({
             </div>
 
             <DialogFooter>
-                <Button variant="outline" @click="canceling = null">
+                <Button variant="outline" @click="dismissCancel">
                     Keep it
                 </Button>
                 <Button
