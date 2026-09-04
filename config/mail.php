@@ -31,7 +31,7 @@ return [
     |
     | Supported: "smtp", "sendmail", "mailgun", "ses", "ses-v2",
     |            "postmark", "resend", "log", "array",
-    |            "failover", "roundrobin"
+    |            "failover", "roundrobin", "microsoft-graph"
     |
     */
 
@@ -47,6 +47,29 @@ return [
             'password' => env('MAIL_PASSWORD'),
             'timeout' => null,
             'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
+        ],
+
+        /*
+         * The bookings address is a shared mailbox with no password, so it
+         * cannot authenticate to SMTP. Graph sends on its behalf with an
+         * app-only token instead -- see MicrosoftGraphTransport.
+         *
+         * These credentials are deliberately separate from services.microsoft,
+         * which the calendar integration signs users in with. Mail holds an
+         * application permission that can send as a mailbox with nobody
+         * present, so it gets its own registration and its own secret to
+         * rotate. They fall back to the calendar's registration for a setup
+         * that runs both from one app -- with ?: rather than an env() default,
+         * because a key that is present but empty is an empty string, not a
+         * missing value, and would never reach the default.
+         */
+        'microsoft-graph' => [
+            'transport' => 'microsoft-graph',
+            'tenant' => env('MAIL_GRAPH_TENANT') ?: env('MICROSOFT_TENANT'),
+            'client_id' => env('MAIL_GRAPH_CLIENT_ID') ?: env('MICROSOFT_CLIENT_ID'),
+            'client_secret' => env('MAIL_GRAPH_CLIENT_SECRET') ?: env('MICROSOFT_CLIENT_SECRET'),
+            'mailbox' => env('MAIL_GRAPH_MAILBOX') ?: env('MAIL_FROM_ADDRESS'),
+            'save_to_sent_items' => env('MAIL_GRAPH_SAVE_TO_SENT_ITEMS', false),
         ],
 
         'ses' => [
@@ -82,7 +105,7 @@ return [
         'failover' => [
             'transport' => 'failover',
             'mailers' => [
-                'smtp',
+                'microsoft-graph',
                 'log',
             ],
             'retry_after' => 60,

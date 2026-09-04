@@ -3,12 +3,16 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Services\Mail\MicrosoftGraphTransport;
 use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Cache\Repository as Cache;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use RuntimeException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -26,8 +30,48 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+        $this->registerMicrosoftGraphMailer();
         $this->grantSuperAdminsEveryAbility();
         $this->restrictLogViewerToSuperAdmins();
+    }
+
+    /**
+     * Register the Microsoft Graph mail transport.
+     *
+     * The Azure app registration is the same one the calendar integration
+     * uses, but this token is app-only rather than a signed in user's, so the
+     * registration needs the Mail.Send APPLICATION permission with admin
+     * consent -- ideally narrowed to the bookings mailbox with an Exchange
+     * application access policy.
+     */
+    protected function registerMicrosoftGraphMailer(): void
+    {
+        Mail::extend('microsoft-graph', function (array $config = []): MicrosoftGraphTransport {
+            foreach (['tenant', 'client_id', 'client_secret', 'mailbox'] as $key) {
+                if (blank($config[$key] ?? null)) {
+                    throw new RuntimeException("The microsoft-graph mailer needs a {$key}; see config/mail.php.");
+                }
+            }
+
+            /**
+             * The calendar integration signs users in and can accept the
+             * multi-tenant 'common' placeholder. An app-only token cannot:
+             * there is no user to resolve the tenant from, so the mail tenant
+             * has to name the real one.
+             */
+            if ($config['tenant'] === 'common') {
+                throw new RuntimeException('The microsoft-graph mailer needs a real tenant; client credentials cannot use "common".');
+            }
+
+            return new MicrosoftGraphTransport(
+                cache: app(Cache::class),
+                tenant: $config['tenant'],
+                clientId: $config['client_id'],
+                clientSecret: $config['client_secret'],
+                mailbox: $config['mailbox'],
+                saveToSentItems: (bool) ($config['save_to_sent_items'] ?? false),
+            );
+        });
     }
 
     /**
