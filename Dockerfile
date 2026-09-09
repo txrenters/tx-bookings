@@ -110,7 +110,7 @@ RUN APP_KEY=base64:$(head -c 32 /dev/urandom | base64) APP_URL="${APP_URL}" VITE
 # stage copies public/ out of here -- so the assets are published during the
 # build rather than committed, the same way the Vite bundle is. Publishing here
 # also means they can never drift from the installed package version.
-RUN APP_KEY=base64:$(head -c 32 /dev/urandom | base64) php artisan log-viewer:publish --force
+RUN APP_KEY=base64:$(head -c 32 /dev/urandom | base64) php artisan log-viewer:publish --no-interaction
 
 # ---------------------------------------------------------------------------
 # Stage 2: PHP-FPM runtime. Shared by the app, queue, scheduler and migrate

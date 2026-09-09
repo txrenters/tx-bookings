@@ -13,4 +13,4 @@ Access is pinned by AppServiceProvider::restrictLogViewerToSuperAdmins, which de
 
 Middleware order in config/log-viewer.php is deliberate: 'auth' sits ahead of AuthorizeLogViewer so a signed-out visitor is redirected to login rather than shown a bare 403.
 
-Two operational notes. The package is enabled in production by default (LOG_VIEWER_ENABLED) — the removed custom viewer 404'd there outright, so production logs are now readable by super admins; set LOG_VIEWER_ENABLED=false to restore the stricter stance. And its UI assets live in public/vendor/log-viewer: re-run `php artisan log-viewer:publish --force` after upgrading the package or the page loads without styling.
+Two operational notes. The package is enabled in production by default (LOG_VIEWER_ENABLED) — the removed custom viewer 404'd there outright, so production logs are now readable by super admins; set LOG_VIEWER_ENABLED=false to restore the stricter stance. And its UI assets live in public/vendor/log-viewer: re-run `php artisan log-viewer:publish` after upgrading the package or the page loads without styling. The command takes no --force (it overwrites anyway); passing one fails the Docker build.
