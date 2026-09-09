@@ -32,7 +32,7 @@ class BookingReminder extends Notification implements ShouldQueue
      */
     public function toMail(object $notifiable): MailMessage
     {
-        $booking = $this->booking->loadMissing(['eventType', 'host', 'guests']);
+        $booking = $this->booking->loadMissing(['eventType', 'host', 'guests', 'answers']);
         $presenter = new BookingMailPresenter($booking, $notifiable);
         $lead = $this->minutesBefore >= 60
             ? (int) round($this->minutesBefore / 60).' hour'.($this->minutesBefore >= 120 ? 's' : '')
@@ -47,6 +47,14 @@ class BookingReminder extends Notification implements ShouldQueue
 
         if (filled($location = $presenter->location())) {
             $message->line('**Where:** '.$location);
+        }
+
+        if (filled($description = $presenter->eventDescription())) {
+            $message->line($description);
+        }
+
+        foreach ([...$presenter->inviteeLines(), ...$presenter->answerLines()] as $line) {
+            $message->line($line);
         }
 
         return $presenter->withFooter($message);

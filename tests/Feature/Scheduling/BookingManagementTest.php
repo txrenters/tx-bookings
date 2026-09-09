@@ -16,6 +16,7 @@ use App\Notifications\Bookings\BookingDeclined;
 use App\Notifications\Bookings\BookingReminder as BookingReminderNotification;
 use App\Services\Ics\IcsGenerator;
 use Carbon\CarbonImmutable;
+use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 
@@ -515,4 +516,47 @@ test('the pending filter lists only pending meetings', function () {
     $this->actingAs($this->host)
         ->get(route('meetings.index', ['current_team' => $this->team->slug]))
         ->assertInertia(fn ($page) => $page->has('meetings', 2));
+});
+
+test('the reminder carries the event description, invitee and answers to the host', function () {
+    $this->eventType->update(['description' => 'A 20 minute chat about billing.']);
+
+    $booking = bookingFor($this->host, $this->eventType, [
+        'name' => 'Sam Rivera',
+        'email' => 'sam@example.com',
+        'notes' => 'Running from another call.',
+    ]);
+
+    $booking->answers()->create([
+        'label' => 'What is the best number to reach you?',
+        'answer' => '+1 346-239-9213',
+    ]);
+
+    $mail = (new BookingReminderNotification($booking, 60))->toMail($this->host);
+    $body = implode(' ', [...$mail->introLines, ...$mail->outroLines]);
+
+    expect($body)->toContain('A 20 minute chat about billing.')
+        ->and($body)->toContain('**Invitee:** Sam Rivera (sam@example.com)')
+        ->and($body)->toContain('**What is the best number to reach you?** +1 346-239-9213')
+        ->and($body)->toContain('**Notes** Running from another call.');
+});
+
+test('the reminder does not read the invitees own details back to them', function () {
+    $booking = bookingFor($this->host, $this->eventType, [
+        'name' => 'Sam Rivera',
+        'email' => 'sam@example.com',
+    ]);
+
+    $booking->answers()->create([
+        'label' => 'What is the best number to reach you?',
+        'answer' => '+1 346-239-9213',
+    ]);
+
+    $notifiable = (new AnonymousNotifiable)->route('mail', $booking->email);
+    $mail = (new BookingReminderNotification($booking, 60))->toMail($notifiable);
+    $body = implode(' ', [...$mail->introLines, ...$mail->outroLines]);
+
+    expect($body)->not->toContain('**Invitee:**')
+        // The answers still travel: they are what the meeting is about.
+        ->and($body)->toContain('**What is the best number to reach you?** +1 346-239-9213');
 });

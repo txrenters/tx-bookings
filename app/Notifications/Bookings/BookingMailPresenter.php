@@ -3,6 +3,7 @@
 namespace App\Notifications\Bookings;
 
 use App\Models\Booking;
+use App\Models\BookingAnswer;
 use App\Models\User;
 use Illuminate\Notifications\Messages\MailMessage;
 
@@ -97,6 +98,55 @@ class BookingMailPresenter
     public function location(): ?string
     {
         return $this->booking->meeting_url ?: $this->booking->location_detail;
+    }
+
+    /**
+     * Get the event type's own description, which says what the meeting is
+     * for in the organiser's words.
+     */
+    public function eventDescription(): ?string
+    {
+        $description = trim((string) $this->booking->eventType->description);
+
+        return $description === '' ? null : $description;
+    }
+
+    /**
+     * Get the invitee's contact details.
+     *
+     * Only the hosts see them: they are the ones who may need to reach out
+     * beforehand, and reading their own address back to the invitee adds
+     * nothing.
+     *
+     * @return array<int, string>
+     */
+    public function inviteeLines(): array
+    {
+        if (! $this->isHost()) {
+            return [];
+        }
+
+        return ['**Invitee:** '.$this->booking->name.' ('.$this->booking->email.')'];
+    }
+
+    /**
+     * Get the booking questions alongside what the invitee answered.
+     *
+     * @return array<int, string>
+     */
+    public function answerLines(): array
+    {
+        $lines = $this->booking->answers
+            ->filter(fn (BookingAnswer $answer) => filled($answer->answer))
+            ->map(fn (BookingAnswer $answer) => '**'.$answer->label.'** '.$answer->answer)
+            ->values()
+            ->all();
+
+        if (filled($this->booking->notes)) {
+            $lines[] = '**Notes** '.$this->booking->notes;
+        }
+
+        return $lines;
     }
 
     /**
