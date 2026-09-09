@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 test('profile page is displayed', function () {
     $user = User::factory()->create();
@@ -82,4 +84,92 @@ test('correct password must be provided to delete account', function () {
         ->assertRedirect(route('profile.edit'));
 
     expect($user->fresh())->not->toBeNull();
+});
+
+test('a photo can be uploaded and replaces the one before it', function () {
+    Storage::fake('public');
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->patch(route('profile.update'), [
+        'name' => $user->name,
+        'email' => $user->email,
+        'photo' => UploadedFile::fake()->image('me.jpg', 400, 400),
+    ])->assertSessionHasNoErrors();
+
+    $first = $user->fresh()->avatar_path;
+
+    expect($first)->not->toBeNull();
+    Storage::disk('public')->assertExists($first);
+
+    $this->actingAs($user)->patch(route('profile.update'), [
+        'name' => $user->name,
+        'email' => $user->email,
+        'photo' => UploadedFile::fake()->image('newer.jpg', 400, 400),
+    ])->assertSessionHasNoErrors();
+
+    // The old file goes with it rather than piling up on the disk.
+    Storage::disk('public')->assertMissing($first);
+    Storage::disk('public')->assertExists($user->fresh()->avatar_path);
+});
+
+test('saving the profile without mentioning the photo keeps it', function () {
+    Storage::fake('public');
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->patch(route('profile.update'), [
+        'name' => $user->name,
+        'email' => $user->email,
+        'photo' => UploadedFile::fake()->image('me.jpg', 400, 400),
+    ]);
+
+    $path = $user->fresh()->avatar_path;
+
+    $this->actingAs($user)->patch(route('profile.update'), [
+        'name' => 'A New Name',
+        'email' => $user->email,
+    ])->assertSessionHasNoErrors();
+
+    expect($user->fresh()->name)->toBe('A New Name')
+        ->and($user->fresh()->avatar_path)->toBe($path);
+});
+
+test('a photo can be removed', function () {
+    Storage::fake('public');
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->patch(route('profile.update'), [
+        'name' => $user->name,
+        'email' => $user->email,
+        'photo' => UploadedFile::fake()->image('me.jpg', 400, 400),
+    ]);
+
+    $path = $user->fresh()->avatar_path;
+
+    $this->actingAs($user)->patch(route('profile.update'), [
+        'name' => $user->name,
+        'email' => $user->email,
+        'remove_photo' => true,
+    ])->assertSessionHasNoErrors();
+
+    expect($user->fresh()->avatar_path)->toBeNull()
+        ->and($user->fresh()->avatar)->toBeNull();
+    Storage::disk('public')->assertMissing($path);
+});
+
+test('an svg is refused as a photo', function () {
+    Storage::fake('public');
+
+    $user = User::factory()->create();
+
+    // An SVG can carry script and photos are served from our own origin.
+    $this->actingAs($user)->patch(route('profile.update'), [
+        'name' => $user->name,
+        'email' => $user->email,
+        'photo' => UploadedFile::fake()->create('logo.svg', 10, 'image/svg+xml'),
+    ])->assertSessionHasErrors('photo');
+
+    expect($user->fresh()->avatar_path)->toBeNull();
 });

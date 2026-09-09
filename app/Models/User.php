@@ -6,6 +6,7 @@ namespace App\Models;
 use App\Concerns\HasScheduling;
 use App\Concerns\HasTeams;
 use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Attributes\Appends;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Collection;
@@ -14,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Fortify\Contracts\PasskeyUser;
 use Laravel\Fortify\PasskeyAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
@@ -22,6 +24,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property int $id
  * @property string $name
  * @property string $email
+ * @property string|null $avatar_path
  * @property bool $is_super_admin
  * @property string|null $booking_slug
  * @property string $timezone
@@ -47,6 +50,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property-read Pivot|null $pivot Present when fetched through a belongsToMany relation.
  */
 #[Fillable(['name', 'email', 'password', 'is_super_admin', 'current_team_id', 'booking_slug', 'timezone', 'welcome_message', 'holiday_country'])]
+#[Appends(['avatar'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements PasskeyUser
 {
@@ -92,6 +96,25 @@ class User extends Authenticatable implements PasskeyUser
      * A super admin is not a member of every organization — they bypass the
      * membership check instead, so nothing about org rosters changes.
      */
+    /**
+     * Get the URL of the user's photo, if they have uploaded one.
+     */
+    public function avatarUrl(): ?string
+    {
+        return $this->avatar_path === null
+            ? null
+            : Storage::disk('public')->url($this->avatar_path);
+    }
+
+    /**
+     * Expose the photo's URL wherever the user is serialised, which is how the
+     * front end's `user.avatar` has always been typed.
+     */
+    public function getAvatarAttribute(): ?string
+    {
+        return $this->avatarUrl();
+    }
+
     public function isSuperAdmin(): bool
     {
         return (bool) $this->is_super_admin;
