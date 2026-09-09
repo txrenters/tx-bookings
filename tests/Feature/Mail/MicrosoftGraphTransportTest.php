@@ -15,7 +15,7 @@ beforeEach(function () {
             'mailbox' => 'bookings@texasrenters.com',
             'save_to_sent_items' => false,
         ],
-        'mail.from' => ['address' => 'bookings@texasrenters.com', 'name' => 'TX Bookings'],
+        'mail.from' => ['address' => 'bookings@texasrenters.com', 'name' => 'TR Bookings'],
     ]);
 });
 

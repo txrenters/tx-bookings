@@ -6,7 +6,7 @@
 
 ---
 
-**Project:** TX Bookings
+**Project:** TR Bookings
 **Generated:** 2026-08-24 23:48:43
 **Category:** Productivity Tool
 **Design Dials:** Variance 2/10 (Centered / Minimal) | Motion 3/10 (Subtle) | Density 6/10 (Standard)
