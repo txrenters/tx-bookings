@@ -17,7 +17,11 @@ class UpdateTeamMemberRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'role' => ['required', 'string', Rule::in(array_column(TeamRole::assignable(), 'value'))],
+            // Owner is accepted here, unlike on an invitation: naming a new
+            // owner is a transfer, and the controller demotes the old one in
+            // the same transaction. Only the owner and super admins reach this
+            // endpoint at all -- UpdateMember is an owner-only permission.
+            'role' => ['required', 'string', Rule::enum(TeamRole::class)],
         ];
     }
 }

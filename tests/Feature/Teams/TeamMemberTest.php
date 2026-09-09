@@ -91,7 +91,7 @@ test('team owner cannot be removed', function () {
     expect($owner->fresh()->belongsToTeam($team))->toBeTrue();
 });
 
-test('team member role cannot be set to owner', function () {
+test('an organization never ends up with two owners', function () {
     $owner = User::factory()->create();
     $member = User::factory()->create();
     $team = Team::factory()->create();
@@ -99,15 +99,16 @@ test('team member role cannot be set to owner', function () {
     $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
     $team->members()->attach($member, ['role' => TeamRole::Member->value]);
 
-    $response = $this
-        ->actingAs($owner)
+    // Naming an owner used to be rejected outright; it is now a transfer, so
+    // what has to hold is that only one owner survives it.
+    $this->actingAs($owner)
         ->patch(route('teams.members.update', [$team, $member]), [
             'role' => TeamRole::Owner->value,
-        ]);
+        ])
+        ->assertSessionHasNoErrors();
 
-    $response->assertSessionHasErrors('role');
-
-    expect($team->members()->where('user_id', $member->id)->first()->pivot->role->value)->toEqual(TeamRole::Member->value);
+    expect($team->memberships()->where('role', TeamRole::Owner)->count())->toBe(1)
+        ->and($team->memberships()->where('role', TeamRole::Owner)->first()->user_id)->toBe($member->id);
 });
 
 test('removed member current team is set to personal team', function () {
@@ -203,4 +204,41 @@ test('a super admin is left off the organizations member roster', function () {
         ->assertInertia(fn ($page) => $page
             ->has('members', 1)
             ->where('members.0.email', $owner->email));
+});
+
+test('an owner hands ownership to another member', function () {
+    $owner = User::factory()->create();
+    $successor = User::factory()->create();
+    $team = Team::factory()->create();
+
+    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($successor, ['role' => TeamRole::Member->value]);
+
+    $this->actingAs($owner)
+        ->patch(route('teams.members.update', ['team' => $team->slug, 'user' => $successor->id]), [
+            'role' => TeamRole::Owner->value,
+        ])
+        ->assertRedirect();
+
+    expect($successor->fresh()->teamRole($team))->toBe(TeamRole::Owner)
+        // Exactly one owner: the previous holder steps down to admin.
+        ->and($owner->fresh()->teamRole($team))->toBe(TeamRole::Admin);
+});
+
+test('an admin cannot hand ownership to themselves', function () {
+    $owner = User::factory()->create();
+    $admin = User::factory()->create();
+    $team = Team::factory()->create();
+
+    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($admin, ['role' => TeamRole::Admin->value]);
+
+    $this->actingAs($admin)
+        ->patch(route('teams.members.update', ['team' => $team->slug, 'user' => $admin->id]), [
+            'role' => TeamRole::Owner->value,
+        ])
+        ->assertForbidden();
+
+    expect($admin->fresh()->teamRole($team))->toBe(TeamRole::Admin)
+        ->and($owner->fresh()->teamRole($team))->toBe(TeamRole::Owner);
 });

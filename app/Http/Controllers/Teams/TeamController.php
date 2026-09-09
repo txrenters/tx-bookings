@@ -94,6 +94,14 @@ class TeamController extends Controller
                 ]),
             'permissions' => $user->toTeamPermissions($team),
             'availableRoles' => TeamRole::assignable(),
+            // Ownership can be handed to an existing member, but never handed
+            // out with an invitation, so the two lists differ.
+            'memberRoles' => $user->can('updateMember', $team)
+                ? array_map(
+                    fn (TeamRole $role) => ['value' => $role->value, 'label' => $role->label()],
+                    TeamRole::cases(),
+                )
+                : TeamRole::assignable(),
             'timezones' => timezone_identifiers_list(),
         ]);
     }

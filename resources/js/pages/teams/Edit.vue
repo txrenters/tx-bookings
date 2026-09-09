@@ -59,6 +59,8 @@ type Props = {
     invitations: TeamInvitation[];
     permissions: TeamPermissions;
     availableRoles: RoleOption[];
+    /** Includes Owner when the viewer may hand ownership over. */
+    memberRoles: RoleOption[];
     timezones: string[];
 };
 
@@ -432,7 +434,7 @@ const submitProfile = () => {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent>
                                 <DropdownMenuItem
-                                    v-for="role in availableRoles"
+                                    v-for="role in memberRoles"
                                     :key="role.value"
                                     data-test="member-role-option"
                                     @click="
