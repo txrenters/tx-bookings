@@ -2,6 +2,7 @@
 
 namespace App\Services\Scheduling;
 
+use App\Enums\TeamPermission;
 use App\Models\Group;
 use App\Models\Team;
 use App\Models\User;
@@ -13,6 +14,9 @@ use Illuminate\Support\Str;
  * The "All Users & Teams" picker shared by the scheduling and meetings lists.
  *
  * A scope is one of: "all", "mine", "user:{id}" or "group:{id}".
+ *
+ * A plain member is confined to their own schedule: every scope resolves to
+ * them, the picker offers nothing else, and no crafted ?scope= widens it.
  */
 class ScopeFilter
 {
@@ -23,9 +27,15 @@ class ScopeFilter
      */
     public function options(Team $team, User $viewer): array
     {
+        $mine = ['value' => 'mine', 'label' => 'My '.config('app.name'), 'initial' => $this->initial($viewer->name)];
+
+        if (! $this->viewsEveryone($team, $viewer)) {
+            return ['primary' => [$mine], 'groups' => [], 'users' => []];
+        }
+
         return [
             'primary' => [
-                ['value' => 'mine', 'label' => 'My '.config('app.name'), 'initial' => $this->initial($viewer->name)],
+                $mine,
                 ['value' => 'all', 'label' => 'All Users & Teams', 'initial' => null],
             ],
             'groups' => $team->groups()->orderBy('name')->get()
@@ -50,6 +60,11 @@ class ScopeFilter
      */
     public function userIds(string $scope, Team $team, User $viewer): ?array
     {
+        // Whatever the URL asks for, a member resolves to themselves alone.
+        if (! $this->viewsEveryone($team, $viewer)) {
+            return [$viewer->id];
+        }
+
         if ($scope === 'mine') {
             return [$viewer->id];
         }
@@ -67,6 +82,25 @@ class ScopeFilter
         }
 
         return null;
+    }
+
+    /**
+     * Determine whether the viewer may look past their own schedule.
+     *
+     * Managing the organization's bookings is what separates an owner or
+     * admin, who see everyone, from a member, who sees only what they host.
+     */
+    public function viewsEveryone(Team $team, User $viewer): bool
+    {
+        return $viewer->hasTeamPermission($team, TeamPermission::ManageTeamBookings);
+    }
+
+    /**
+     * Get the scope a viewer lands on before they pick one.
+     */
+    public function defaultScope(Team $team, User $viewer): string
+    {
+        return $this->viewsEveryone($team, $viewer) ? 'all' : 'mine';
     }
 
     /**
@@ -111,12 +145,17 @@ class ScopeFilter
     }
 
     /**
-     * Get every scope value that is valid for the team.
+     * Get every scope value that is valid for the team, and for the viewer
+     * when one is given.
      *
      * @return Collection<int, string>
      */
-    public function validValues(Team $team): Collection
+    public function validValues(Team $team, ?User $viewer = null): Collection
     {
+        if ($viewer !== null && ! $this->viewsEveryone($team, $viewer)) {
+            return collect(['mine']);
+        }
+
         return collect(['all', 'mine'])
             ->merge($team->groups()->pluck('id')->map(fn ($id) => "group:{$id}"))
             ->merge($team->members()->pluck('users.id')->map(fn ($id) => "user:{$id}"));

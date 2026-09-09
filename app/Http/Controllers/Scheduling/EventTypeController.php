@@ -38,10 +38,11 @@ class EventTypeController extends Controller
 
         $user = $request->user();
         $scopes = app(ScopeFilter::class);
-        $scope = $request->string('scope', 'all')->toString();
+        $defaultScope = $scopes->defaultScope($current_team, $user);
+        $scope = $request->string('scope', $defaultScope)->toString();
 
-        if (! $scopes->validValues($current_team)->contains($scope)) {
-            $scope = 'all';
+        if (! $scopes->validValues($current_team, $user)->contains($scope)) {
+            $scope = $defaultScope;
         }
 
         $eventTypes = $scopes->applyToHosts(
@@ -456,23 +457,42 @@ class EventTypeController extends Controller
     /**
      * Get the name the event type is listed under.
      *
-     * Pooled event types belong to the team; everything else to its owner.
+     * A pooled event type belongs to the team it is pointed at, or to the
+     * organization at large when it is pointed at no team; everything else
+     * belongs to its owner.
      */
     protected function ownerName(EventType $eventType): string
     {
-        return $eventType->kind->hasHostPool() ? 'Shared' : $eventType->owner->name;
+        if (! $eventType->kind->hasHostPool()) {
+            return $eventType->owner->name;
+        }
+
+        return $eventType->group_id === null ? 'Shared' : $eventType->group->name;
     }
 
     /**
      * Get the public page the event type is listed under.
+     *
+     * Each team has a page of its own listing just its event types, so a
+     * pooled event type pointed at one links there rather than at the
+     * organization's front door, which lists every shared kind.
      */
     protected function ownerLandingUrl(EventType $eventType): string
     {
-        return route('book.page', [
-            'page' => $eventType->kind->hasHostPool()
-                ? $eventType->team->slug
-                : ($eventType->owner->booking_slug ?? $eventType->team->slug),
-        ]);
+        if (! $eventType->kind->hasHostPool()) {
+            return route('book.page', [
+                'page' => $eventType->owner->booking_slug ?? $eventType->team->slug,
+            ]);
+        }
+
+        if ($eventType->group_id !== null) {
+            return route('book.event-type', [
+                'page' => $eventType->team->slug,
+                'eventType' => $eventType->group->slug,
+            ]);
+        }
+
+        return route('book.page', ['page' => $eventType->team->slug]);
     }
 
     /**

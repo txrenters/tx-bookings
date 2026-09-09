@@ -449,10 +449,14 @@ test('the detail panel hides actions from a member who cannot manage the event t
     $team->members()->attach($member, ['role' => TeamRole::Member->value]);
     $member->switchTeam($team);
 
-    EventType::factory()->create([
+    // A member only sees an event type they host, so hosting someone else's
+    // is the one way to reach a listed event type you cannot manage.
+    $eventType = EventType::factory()->create([
         'team_id' => $team->id,
         'user_id' => $this->user->id,
     ]);
+
+    $eventType->hosts()->attach($member, ['priority' => 0]);
 
     $this->actingAs($member)
         ->get(route('scheduling.index', ['current_team' => $team->slug]))
@@ -862,4 +866,42 @@ test('a malformed calendar month falls back to the current month', function () {
     schedulingCalendarProps($this->actingAs($this->user), $this->team, ['calendarMonth' => 'nope-13'])
         ->assertOk()
         ->assertJsonPath('props.calendarMonth', '2026-09');
+});
+
+test('a pooled event type pointed at a team is listed under that team', function () {
+    $group = Group::factory()->create([
+        'team_id' => $this->team->id,
+        'name' => 'Leasing',
+        'slug' => 'leasing',
+    ]);
+
+    EventType::factory()->ownedBy($this->user)->create([
+        'name' => 'Leasing Team Meeting',
+        'kind' => EventTypeKind::RoundRobin,
+        'group_id' => $group->id,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('scheduling.index', ['current_team' => $this->team->slug]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('eventTypes.0.ownerName', 'Leasing')
+            ->where('eventTypes.0.ownerLandingUrl', route('book.event-type', [
+                'page' => $this->team->slug,
+                'eventType' => 'leasing',
+            ])));
+});
+
+test('a pooled event type pointed at no team is listed under the organization', function () {
+    EventType::factory()->ownedBy($this->user)->create([
+        'name' => 'Round robin call',
+        'kind' => EventTypeKind::RoundRobin,
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('scheduling.index', ['current_team' => $this->team->slug]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('eventTypes.0.ownerName', 'Shared')
+            ->where('eventTypes.0.ownerLandingUrl', route('book.page', ['page' => $this->team->slug])));
 });

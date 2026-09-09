@@ -50,10 +50,11 @@ class MeetingController extends Controller
         $user = $request->user();
         $timezone = $user->timezone ?: config('scheduling.default_timezone');
 
-        $scope = $request->string('scope', 'all')->toString();
+        $defaultScope = $scopes->defaultScope($current_team, $user);
+        $scope = $request->string('scope', $defaultScope)->toString();
 
-        if (! $scopes->validValues($current_team)->contains($scope)) {
-            $scope = 'all';
+        if (! $scopes->validValues($current_team, $user)->contains($scope)) {
+            $scope = $defaultScope;
         }
 
         $range = $request->string('filter', 'upcoming')->toString();
