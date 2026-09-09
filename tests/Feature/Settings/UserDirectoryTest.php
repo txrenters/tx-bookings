@@ -38,10 +38,11 @@ test('a super admin sees every account and the organizations it belongs to', fun
             ->has('users.0.groups', 0));
 });
 
-test('an ordinary user cannot open the directory', function () {
-    $this->actingAs(User::factory()->create())
-        ->get(route('users.index'))
-        ->assertForbidden();
+test('somebody who administers no organization cannot open the directory', function () {
+    $user = User::factory()->create();
+    $user->teams()->detach();
+
+    $this->actingAs($user)->get(route('users.index'))->assertForbidden();
 });
 
 test('a super admin sends a password reset link', function () {
@@ -142,4 +143,61 @@ test('an ordinary user cannot change roles or delete accounts', function () {
         ->assertForbidden();
 
     expect($target->fresh()->teamRole($team))->toBe(TeamRole::Member);
+});
+
+test('an organization admin sees only their own people, without the actions', function () {
+    $team = Team::factory()->create();
+    $admin = User::factory()->create();
+    $colleague = User::factory()->create(['name' => 'Colleague']);
+
+    $team->members()->attach($admin, ['role' => TeamRole::Admin->value]);
+    $team->members()->attach($colleague, ['role' => TeamRole::Member->value]);
+
+    // Somebody in another organization entirely.
+    User::factory()->create(['name' => 'Stranger']);
+
+    $this->actingAs($admin)
+        ->get(route('users.index'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('canManage', false)
+            ->has('users', 2));
+});
+
+test('an organization admin cannot act on the people they can see', function () {
+    Notification::fake();
+
+    $team = Team::factory()->create();
+    $admin = User::factory()->create();
+    $colleague = User::factory()->create();
+
+    $team->members()->attach($admin, ['role' => TeamRole::Admin->value]);
+    $team->members()->attach($colleague, ['role' => TeamRole::Member->value]);
+
+    $this->actingAs($admin)
+        ->post(route('users.password-reset', ['user' => $colleague->id]))
+        ->assertForbidden();
+
+    $this->actingAs($admin)
+        ->patch(route('users.role', ['user' => $colleague->id]), [
+            'team_id' => $team->id,
+            'role' => TeamRole::Admin->value,
+        ])
+        ->assertForbidden();
+
+    $this->actingAs($admin)
+        ->delete(route('users.destroy', ['user' => $colleague->id]))
+        ->assertForbidden();
+
+    expect($colleague->fresh()->teamRole($team))->toBe(TeamRole::Member);
+});
+
+test('a plain member cannot open the directory at all', function () {
+    $team = Team::factory()->create();
+    $member = User::factory()->create();
+
+    $member->teams()->detach();
+    $team->members()->attach($member, ['role' => TeamRole::Member->value]);
+
+    $this->actingAs($member)->get(route('users.index'))->assertForbidden();
 });

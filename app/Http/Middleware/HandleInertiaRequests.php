@@ -53,6 +53,8 @@ class HandleInertiaRequests extends Middleware
             'isSuperAdmin' => (bool) $user?->isSuperAdmin(),
             // Hides "New organization" in the switcher; TeamPolicy enforces it.
             'canCreateTeam' => (bool) $user?->can('create', Team::class),
+            // Gates the Users nav entry; the controller enforces it as well.
+            'canViewUsers' => (bool) $user?->can('viewUsers'),
         ];
     }
 }

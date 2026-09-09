@@ -68,7 +68,7 @@ test('the created user is emailed a link to set their own password', function ()
  * The account is placed in an existing organization, so a personal one would
  * only clutter the switcher. This is the difference from self-registration.
  */
-test('creating a user in an organization does not also create a personal one', function () {
+test('creating a user in an organization puts them in that one alone', function () {
     Notification::fake();
 
     $superAdmin = User::factory()->create(['is_super_admin' => true]);
@@ -83,7 +83,7 @@ test('creating a user in an organization does not also create a personal one', f
     $user = User::where('email', 'new.hire@example.com')->firstOrFail();
 
     expect($user->teams()->count())->toEqual(1)
-        ->and($user->teams()->first()->is_personal)->toBeFalse();
+        ->and($user->teams()->count())->toBe(1);
 });
 
 test('an organization owner cannot create a user directly', function () {

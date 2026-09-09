@@ -37,7 +37,6 @@ class TeamPolicy
     public function create(User $user): bool
     {
         return $user->teams()
-            ->where('teams.is_personal', false)
             ->wherePivot('role', TeamRole::Admin->value)
             ->exists();
     }
@@ -55,8 +54,7 @@ class TeamPolicy
      */
     public function leave(User $user, Team $team): bool
     {
-        return ! $team->is_personal
-            && $user->belongsToTeam($team)
+        return $user->belongsToTeam($team)
             // An organization has to keep an administrator, so the last one
             // promotes someone else before leaving.
             && ! $this->isLastAdmin($user, $team);
@@ -130,6 +128,6 @@ class TeamPolicy
      */
     public function delete(User $user, Team $team): bool
     {
-        return ! $team->is_personal && $user->hasTeamPermission($team, TeamPermission::DeleteTeam);
+        return $user->hasTeamPermission($team, TeamPermission::DeleteTeam);
     }
 }

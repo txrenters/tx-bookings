@@ -23,7 +23,7 @@ trait RedirectsToCurrentTeam
 
         abort_if(! $user, 403);
 
-        $team = $user->currentTeam ?? $user->personalTeam();
+        $team = $user->currentTeam ?? $user->fallbackTeam();
 
         abort_if(! $team, 403);
 

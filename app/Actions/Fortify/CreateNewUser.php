@@ -4,7 +4,6 @@ namespace App\Actions\Fortify;
 
 use App\Actions\Scheduling\ApplyDefaultHolidays;
 use App\Actions\Scheduling\CreateDefaultAvailability;
-use App\Actions\Teams\CreateTeam;
 use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
 use App\Models\TeamInvitation;
@@ -19,7 +18,6 @@ class CreateNewUser implements CreatesNewUsers
     use PasswordValidationRules, ProfileValidationRules;
 
     public function __construct(
-        private CreateTeam $createTeam,
         private CreateDefaultAvailability $createDefaultAvailability,
         private ApplyDefaultHolidays $applyDefaultHolidays,
     ) {
@@ -72,7 +70,25 @@ class CreateNewUser implements CreatesNewUsers
                 'password' => $input['password'],
             ]);
 
-            $this->createTeam->handle($user, $user->name."'s Organization", isPersonal: true);
+            /*
+             * No personal organization: registration is invitation-only, so the
+             * account belongs in the organization that invited it, with the
+             * role the invitation named.
+             */
+            $invitation = TeamInvitation::query()
+                ->whereRaw('lower(email) = ?', [mb_strtolower($input['email'])])
+                ->pending()
+                ->first();
+
+            if ($invitation !== null) {
+                $invitation->team->memberships()->create([
+                    'user_id' => $user->id,
+                    'role' => $invitation->role,
+                ]);
+
+                $user->forceFill(['current_team_id' => $invitation->team_id])->save();
+                $invitation->update(['accepted_at' => now()]);
+            }
 
             $this->createDefaultAvailability->handle($user);
             $this->applyDefaultHolidays->handle($user);

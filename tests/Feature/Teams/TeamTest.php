@@ -42,10 +42,7 @@ test('teams can be created', function () {
 
     $response->assertRedirect();
 
-    $this->assertDatabaseHas('teams', [
-        'name' => 'Test Team',
-        'is_personal' => false,
-    ]);
+    $this->assertDatabaseHas('teams', ['name' => 'Test Team']);
 });
 
 test('team slug uses next available suffix', function () {
@@ -124,8 +121,8 @@ test('teams cannot be updated by members', function () {
     $response->assertForbidden();
 });
 
-test('teams can be deleted by owners', function () {
-    $user = User::factory()->create();
+test('teams can be deleted by a super admin', function () {
+    $user = User::factory()->create(['is_super_admin' => true]);
     $team = Team::factory()->create();
 
     $team->members()->attach($user, ['role' => TeamRole::Admin->value]);
@@ -144,7 +141,7 @@ test('teams can be deleted by owners', function () {
 });
 
 test('team deletion requires name confirmation', function () {
-    $user = User::factory()->create();
+    $user = User::factory()->create(['is_super_admin' => true]);
     $team = Team::factory()->create();
 
     $team->members()->attach($user, ['role' => TeamRole::Admin->value]);
@@ -164,7 +161,7 @@ test('team deletion requires name confirmation', function () {
 });
 
 test('deleting current team switches to alphabetically first remaining team', function () {
-    $user = User::factory()->create(['name' => 'Mike']);
+    $user = User::factory()->create(['name' => 'Mike', 'is_super_admin' => true]);
 
     $zuluTeam = Team::factory()->create(['name' => 'Zulu Team']);
     $zuluTeam->members()->attach($user, ['role' => TeamRole::Admin->value]);
@@ -192,9 +189,9 @@ test('deleting current team switches to alphabetically first remaining team', fu
     expect($user->fresh()->current_team_id)->toEqual($alphaTeam->id);
 });
 
-test('deleting current team falls back to personal team when alphabetically first', function () {
-    $user = User::factory()->create();
-    $personalTeam = $user->personalTeam();
+test('deleting current team falls back to another organization', function () {
+    $user = User::factory()->create(['is_super_admin' => true]);
+    $ownTeam = $user->fallbackTeam();
     $team = Team::factory()->create(['name' => 'Zulu Team']);
     $team->members()->attach($user, ['role' => TeamRole::Admin->value]);
 
@@ -212,16 +209,16 @@ test('deleting current team falls back to personal team when alphabetically firs
         'id' => $team->id,
     ]);
 
-    expect($user->fresh()->current_team_id)->toEqual($personalTeam->id);
+    expect($user->fresh()->current_team_id)->toEqual($ownTeam->id);
 });
 
 test('deleting non current team leaves current team unchanged', function () {
-    $user = User::factory()->create();
-    $personalTeam = $user->personalTeam();
+    $user = User::factory()->create(['is_super_admin' => true]);
+    $ownTeam = $user->fallbackTeam();
     $team = Team::factory()->create();
     $team->members()->attach($user, ['role' => TeamRole::Admin->value]);
 
-    $user->update(['current_team_id' => $personalTeam->id]);
+    $user->update(['current_team_id' => $ownTeam->id]);
 
     $response = $this
         ->actingAs($user)
@@ -235,10 +232,10 @@ test('deleting non current team leaves current team unchanged', function () {
         'id' => $team->id,
     ]);
 
-    expect($user->fresh()->current_team_id)->toEqual($personalTeam->id);
+    expect($user->fresh()->current_team_id)->toEqual($ownTeam->id);
 });
 
-test('members can leave non personal teams', function () {
+test('members can leave an organization', function () {
     $owner = User::factory()->create();
     $member = User::factory()->create();
     $team = Team::factory()->create();
@@ -282,20 +279,20 @@ test('leaving current team switches to alphabetically first remaining team', fun
     expect($member->fresh()->current_team_id)->toEqual($alphaTeam->id);
 });
 
-test('personal teams cannot be left', function () {
+test('the only administrator cannot leave', function () {
     $user = User::factory()->create();
-    $personalTeam = $user->personalTeam();
+    $team = $user->fallbackTeam();
 
     $response = $this
         ->actingAs($user)
-        ->delete(route('teams.leave', $personalTeam));
+        ->delete(route('teams.leave', $team));
 
     $response->assertForbidden();
 
-    expect($user->fresh()->belongsToTeam($personalTeam))->toBeTrue();
+    expect($user->fresh()->belongsToTeam($team))->toBeTrue();
 });
 
-test('team owners cannot leave their team', function () {
+test('the last admin cannot leave their organization', function () {
     $owner = User::factory()->create();
     $team = Team::factory()->create();
 
@@ -321,8 +318,8 @@ test('users cannot leave teams they dont belong to', function () {
     $response->assertForbidden();
 });
 
-test('deleting team switches other affected users to their personal team', function () {
-    $owner = User::factory()->create();
+test('deleting an organization moves everyone in it to another they belong to', function () {
+    $owner = User::factory()->create(['is_super_admin' => true]);
     $member = User::factory()->create();
 
     $team = Team::factory()->create();
@@ -340,24 +337,24 @@ test('deleting team switches other affected users to their personal team', funct
 
     $response->assertRedirect();
 
-    expect($member->fresh()->current_team_id)->toEqual($member->personalTeam()->id);
+    expect($member->fresh()->current_team_id)->toEqual($member->fallbackTeam()->id);
 });
 
-test('personal teams cannot be deleted', function () {
+test('an organization is not deleted by the admin who runs it', function () {
     $user = User::factory()->create();
 
-    $personalTeam = $user->personalTeam();
+    $team = $user->fallbackTeam();
 
     $response = $this
         ->actingAs($user)
-        ->delete(route('teams.destroy', $personalTeam), [
-            'name' => $personalTeam->name,
+        ->delete(route('teams.destroy', $team), [
+            'name' => $team->name,
         ]);
 
     $response->assertForbidden();
 
     $this->assertDatabaseHas('teams', [
-        'id' => $personalTeam->id,
+        'id' => $team->id,
         'deleted_at' => null,
     ]);
 });
@@ -415,6 +412,8 @@ test('a plain member cannot create another organization', function () {
     $team = Team::factory()->create();
     $member = User::factory()->create();
 
+    // Detached from the organization the factory made them an admin of.
+    $member->teams()->detach();
     $team->members()->attach($member, ['role' => TeamRole::Member->value]);
     $member->switchTeam($team);
 
@@ -438,19 +437,22 @@ test('an admin can create another organization', function () {
     $this->assertDatabaseHas('teams', ['name' => 'Second Org']);
 });
 
-test('a personal organization is not standing enough to create another', function () {
-    // The factory user owns only the personal organization registration gives.
+test('an admin of an organization can create another', function () {
+    // The factory gives every account an organization it administers.
     $user = User::factory()->create();
 
     $this->actingAs($user)
-        ->post(route('teams.store'), ['name' => 'Nope'])
-        ->assertForbidden();
+        ->post(route('teams.store'), ['name' => 'Second Org'])
+        ->assertRedirect();
+
+    $this->assertDatabaseHas('teams', ['name' => 'Second Org']);
 });
 
 test('the create organization entry is hidden from a member', function () {
     $team = Team::factory()->create();
     $member = User::factory()->create();
 
+    $member->teams()->detach();
     $team->members()->attach($member, ['role' => TeamRole::Member->value]);
     $member->switchTeam($team);
 
@@ -458,4 +460,19 @@ test('the create organization entry is hidden from a member', function () {
         ->get(route('teams.index'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page->where('canCreateTeam', false));
+});
+
+test('an organization admin cannot delete their organization', function () {
+    $admin = User::factory()->create();
+    $team = Team::factory()->create();
+
+    $team->members()->attach($admin, ['role' => TeamRole::Admin->value]);
+
+    // Creating and destroying organizations belongs to the super admin who
+    // looks after all of them; an admin runs the one they are in.
+    $this->actingAs($admin)
+        ->delete(route('teams.destroy', $team), ['name' => $team->name])
+        ->assertForbidden();
+
+    $this->assertNotSoftDeleted('teams', ['id' => $team->id]);
 });

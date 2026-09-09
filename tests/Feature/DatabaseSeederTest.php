@@ -7,19 +7,22 @@ use Illuminate\Support\Facades\Hash;
 test('seeding creates default accounts that are ready to log in', function () {
     $this->seed(DatabaseSeeder::class);
 
-    $user = User::query()->where('email', 'automation@texasrenters.com')->first();
+    $user = User::query()->where('email', 'superadmin@texasrenters.com')->first();
 
     expect($user)->not->toBeNull()
         ->and(Hash::check('password', $user->password))->toBeTrue()
         ->and($user->email_verified_at)->not->toBeNull()
-        ->and($user->currentTeam)->not->toBeNull()
-        ->and($user->availabilitySchedules()->count())->toBe(1);
+        // No organization: a super admin belongs to none and makes the first.
+        ->and($user->currentTeam)->toBeNull()
+        ->and($user->availabilitySchedules()->count())->toBe(1)
+        // The installation has to start with somebody who can set it up.
+        ->and($user->isSuperAdmin())->toBeTrue();
 });
 
 test('reseeding leaves existing accounts untouched', function () {
     $this->seed(DatabaseSeeder::class);
     $this->seed(DatabaseSeeder::class);
 
-    expect(User::query()->where('email', 'test@example.com')->count())->toBe(1)
-        ->and(User::query()->count())->toBe(2);
+    expect(User::query()->where('email', 'superadmin@texasrenters.com')->count())->toBe(1)
+        ->and(User::query()->count())->toBe(1);
 });

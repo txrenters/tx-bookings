@@ -23,6 +23,7 @@ declare module '@inertiajs/core' {
             currentTeam: Team | null;
             teams: Team[];
             canCreateTeam: boolean;
+            canViewUsers: boolean;
             [key: string]: unknown;
         };
     }

@@ -4,7 +4,6 @@ namespace Database\Seeders;
 
 use App\Actions\Scheduling\ApplyDefaultHolidays;
 use App\Actions\Scheduling\CreateDefaultAvailability;
-use App\Actions\Teams\CreateTeam;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -19,11 +18,10 @@ class DatabaseSeeder extends Seeder
      * without factories on purpose: Faker is a dev dependency, and this
      * seeder also runs on production via the seed_default_users migration.
      *
-     * @var array<int, array{name: string, email: string}>
+     * @var array<int, array{name: string, email: string, is_super_admin?: bool}>
      */
     protected array $defaultUsers = [
-        ['name' => 'TexasRenters Admin', 'email' => 'automation@texasrenters.com'],
-        ['name' => 'Test User', 'email' => 'test@example.com'],
+        ['name' => 'Super Admin', 'email' => 'superadmin@texasrenters.com', 'is_super_admin' => true],
     ];
 
     /**
@@ -44,9 +42,8 @@ class DatabaseSeeder extends Seeder
                 // Seeded accounts skip the verification email round trip.
                 $user->forceFill(['email_verified_at' => now()])->save();
 
-                // Mirror registration (CreateNewUser), so the account is
-                // bookable right away.
-                app(CreateTeam::class)->handle($user, $user->name."'s Organization", isPersonal: true);
+                // No organization: a super admin belongs to none and creates
+                // the first one from the organizations screen.
                 app(CreateDefaultAvailability::class)->handle($user);
                 app(ApplyDefaultHolidays::class)->handle($user);
             });

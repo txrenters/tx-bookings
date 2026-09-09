@@ -23,9 +23,16 @@ enum TeamRole: string
     public function permissions(): array
     {
         return match ($this) {
-            // An organization is run by its admins: there is no owner above
-            // them, and anything above an organization is a super admin.
-            self::Admin => TeamPermission::cases(),
+            /*
+              * An organization is run by its admins: there is no owner above
+              * them. Deleting the organization is the exception -- creating
+              * and destroying organizations belongs to the super admin who
+              * looks after all of them.
+              */
+            self::Admin => array_values(array_filter(
+                TeamPermission::cases(),
+                fn (TeamPermission $permission) => $permission !== TeamPermission::DeleteTeam,
+            )),
             self::Member => [
                 TeamPermission::ManageEventTypes,
             ],

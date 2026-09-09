@@ -20,7 +20,6 @@ use Illuminate\Support\Facades\Storage;
  * @property string $name
  * @property string $slug
  * @property string|null $logo_path
- * @property bool $is_personal
  * @property string $timezone
  * @property string|null $welcome_message
  * @property string|null $website_url
@@ -35,7 +34,7 @@ use Illuminate\Support\Facades\Storage;
  * @property-read Collection<int, Group> $groups
  * @property-read Collection<int, Booking> $bookings
  */
-#[Fillable(['name', 'slug', 'logo_path', 'is_personal', 'timezone', 'welcome_message', 'website_url'])]
+#[Fillable(['name', 'slug', 'logo_path', 'timezone', 'welcome_message', 'website_url'])]
 class Team extends Model
 {
     /** @use HasFactory<TeamFactory> */
@@ -156,7 +155,6 @@ class Team extends Model
     protected function casts(): array
     {
         return [
-            'is_personal' => 'boolean',
         ];
     }
 

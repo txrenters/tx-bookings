@@ -4,7 +4,6 @@ import { Pencil, Plus } from '@lucide/vue';
 import { computed } from 'vue';
 import CreateTeamModal from '@/components/CreateTeamModal.vue';
 import Heading from '@/components/Heading.vue';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Tooltip,
@@ -68,9 +67,6 @@ defineOptions({
                     <div>
                         <div class="flex items-center gap-2">
                             <span class="font-medium">{{ team.name }}</span>
-                            <Badge v-if="team.isPersonal" variant="secondary">
-                                Personal
-                            </Badge>
                         </div>
                         <span class="text-sm text-muted-foreground">
                             {{ team.roleLabel }}

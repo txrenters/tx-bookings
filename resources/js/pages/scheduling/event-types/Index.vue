@@ -132,7 +132,7 @@ type Props = {
     locationTypes: any[];
     schedules: any[];
     teamMembers: any[];
-    isPersonalTeam: boolean;
+    isSoloOrganization: boolean;
     currentUser: { id: number; name: string };
     groups: Array<{ id: number; name: string; memberNames: string[] }>;
     canAssignOwner: boolean;
@@ -250,7 +250,7 @@ const filterableKinds = computed(() => {
         (kind) =>
             present.has(kind.value) ||
             !kind.requiresTeam ||
-            !props.isPersonalTeam,
+            !props.isSoloOrganization,
     );
 });
 
@@ -392,7 +392,7 @@ setLayoutProps({
                             v-for="kind in kinds"
                             :key="kind.value"
                             class="flex-col items-start gap-0.5 py-2.5"
-                            :disabled="kind.requiresTeam && isPersonalTeam"
+                            :disabled="kind.requiresTeam && isSoloOrganization"
                             :data-test="`new-event-type-${kind.value}`"
                             @select="creatingKind = kind.value"
                         >
@@ -402,7 +402,7 @@ setLayoutProps({
                             <span class="text-sm">{{ kind.flow }}</span>
                             <span class="text-xs text-muted-foreground">
                                 {{
-                                    kind.requiresTeam && isPersonalTeam
+                                    kind.requiresTeam && isSoloOrganization
                                         ? 'Needs a shared organization with more than one member.'
                                         : kind.description
                                 }}

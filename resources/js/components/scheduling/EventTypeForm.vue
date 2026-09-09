@@ -38,7 +38,7 @@ type Props = {
         isDefault: boolean;
     }>;
     teamMembers: Array<{ id: number; name: string; email: string }>;
-    isPersonalTeam: boolean;
+    isSoloOrganization: boolean;
     groups: Array<{ id: number; name: string; memberNames: string[] }>;
     canAssignOwner: boolean;
     currentUser: { id: number; name: string };
@@ -157,7 +157,9 @@ const setOptions = (question: Record<string, any>, value: string) => {
                                 v-for="kind in kinds"
                                 :key="kind.value"
                                 :value="kind.value"
-                                :disabled="kind.requiresTeam && isPersonalTeam"
+                                :disabled="
+                                    kind.requiresTeam && isSoloOrganization
+                                "
                             >
                                 {{ kind.label }}
                             </SelectItem>

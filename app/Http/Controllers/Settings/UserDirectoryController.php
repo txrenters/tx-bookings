@@ -29,16 +29,28 @@ class UserDirectoryController extends Controller
      */
     public function index(Request $request): Response
     {
-        Gate::authorize('manageUsers');
+        Gate::authorize('viewUsers');
 
+        $viewer = $request->user();
+        $canManage = $viewer->can('manageUsers');
         $search = $request->string('search')->toString();
+
+        // An admin sees the people in the organizations they administer; a
+        // super admin sees the whole installation.
+        $visibleTeamIds = $canManage
+            ? null
+            : $viewer->teams()->wherePivot('role', TeamRole::Admin->value)->pluck('teams.id');
 
         $users = User::query()
             ->with([
-                'teams:id,name,slug,is_personal',
+                'teams:id,name,slug',
                 'groups:id,name',
                 'calendarAccounts:id,user_id,provider,sync_error,last_synced_at',
             ])
+            ->when($visibleTeamIds !== null, fn ($query) => $query->whereHas(
+                'teams',
+                fn ($teams) => $teams->whereIn('teams.id', $visibleTeamIds),
+            ))
             ->when(filled($search), fn ($query) => $query->where(
                 fn ($match) => $match
                     ->where('name', 'like', "%{$search}%")
@@ -55,6 +67,7 @@ class UserDirectoryController extends Controller
             'lastPage' => $users->lastPage(),
             'total' => $users->total(),
             'roles' => TeamRole::assignable(),
+            'canManage' => $canManage,
         ]);
     }
 
@@ -164,7 +177,6 @@ class UserDirectoryController extends Controller
                 ->map(fn (Team $team) => [
                     'id' => $team->id,
                     'name' => $team->name,
-                    'isPersonal' => (bool) $team->is_personal,
                     // teams() carries a plain pivot, so the role arrives as a
                     // string rather than the cast Membership enum.
                     'role' => $team->getRelation('pivot')->role,

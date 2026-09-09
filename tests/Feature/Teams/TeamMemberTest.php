@@ -110,10 +110,10 @@ test('the last administrator cannot be demoted', function () {
     expect($admin->fresh()->teamRole($team))->toBe(TeamRole::Admin);
 });
 
-test('removed member current team is set to personal team', function () {
+test('a removed member lands on another organization they belong to', function () {
     $owner = User::factory()->create();
     $member = User::factory()->create();
-    $personalTeam = $member->personalTeam();
+    $ownTeam = $member->fallbackTeam();
     $team = Team::factory()->create();
 
     $team->members()->attach($owner, ['role' => TeamRole::Admin->value]);
@@ -125,16 +125,16 @@ test('removed member current team is set to personal team', function () {
         ->actingAs($owner)
         ->delete(route('teams.members.destroy', [$team, $member]));
 
-    expect($member->fresh()->current_team_id)->toEqual($personalTeam->id);
+    expect($member->fresh()->current_team_id)->toEqual($ownTeam->id);
 });
 
 /*
- * personalTeam() is nullable, and is null for every account CreateTeamUser or
- * the invitation join flow made: both drop the user straight into an existing
- * organization and create no personal one. Removing such a member used to pass
- * that null to switchTeam() and 500 the request.
+ * fallbackTeam() is nullable: an account can belong to one organization and
+ * nothing else, which is what CreateTeamUser and the invitation join flow both
+ * produce. Removing such a member used to pass that null to switchTeam() and
+ * 500 the request.
  */
-test('a member with no personal organization can be removed', function () {
+test('a member who belongs nowhere else can be removed', function () {
     $owner = User::factory()->create();
     $team = Team::factory()->create();
 
@@ -172,12 +172,12 @@ test('a removed member falls back to another organization they still belong to',
     expect($member->fresh()->current_team_id)->toBe($other->id);
 });
 
-test('a removed member with a personal organization lands on it', function () {
+test('a removed member lands on the organization they still belong to', function () {
     $owner = User::factory()->create();
     $team = Team::factory()->create();
 
     $member = User::factory()->create();
-    $personal = $member->personalTeam();
+    $personal = $member->fallbackTeam();
     $team->members()->attach($member, ['role' => TeamRole::Member->value]);
     $member->forceFill(['current_team_id' => $team->id])->save();
 

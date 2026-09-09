@@ -3,6 +3,7 @@
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Settings\OrganizationDirectoryController;
 use App\Http\Controllers\Settings\UserDirectoryController;
 use App\Http\Controllers\Teams\TeamInvitationController;
 use App\Http\Middleware\EnsureTeamMembership;
@@ -38,6 +39,14 @@ Route::middleware(['auth'])->group(function () {
     Route::post('users/{user}/password-reset', [UserDirectoryController::class, 'sendPasswordReset'])
         ->name('users.password-reset');
     Route::patch('users/{user}/role', [UserDirectoryController::class, 'updateRole'])->name('users.role');
+
+    Route::get('organizations', [OrganizationDirectoryController::class, 'index'])->name('organizations.index');
+    Route::post('organizations/{team}/members', [OrganizationDirectoryController::class, 'storeMember'])
+        ->name('organizations.members.store');
+    Route::patch('organizations/{team}/members/{user}', [OrganizationDirectoryController::class, 'updateMember'])
+        ->name('organizations.members.update');
+    Route::delete('organizations/{team}/members/{user}', [OrganizationDirectoryController::class, 'destroyMember'])
+        ->name('organizations.members.destroy');
     Route::delete('users/{user}', [UserDirectoryController::class, 'destroy'])->name('users.destroy');
 
     Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');

@@ -527,10 +527,7 @@ const submitProfile = () => {
         </div>
 
         <!-- Danger Zone -->
-        <div
-            v-if="permissions.canDeleteTeam && !team.isPersonal"
-            class="space-y-6"
-        >
+        <div v-if="permissions.canDeleteTeam" class="space-y-6">
             <Heading
                 variant="small"
                 title="Delete organization"
@@ -586,7 +583,7 @@ const submitProfile = () => {
     />
 
     <DeleteTeamModal
-        v-if="permissions.canDeleteTeam && !team.isPersonal"
+        v-if="permissions.canDeleteTeam"
         :team="team"
         :open="deleteDialogOpen"
         @update:open="deleteDialogOpen = $event"

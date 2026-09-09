@@ -112,18 +112,14 @@ class TeamMemberController extends Controller
         );
 
         /*
-         * Land them somewhere they still belong. personalTeam() is nullable and
-         * is null for anyone CreateTeamUser or the invitation join flow made --
-         * both place the account straight into an existing organization and
-         * deliberately create no personal one -- so passing it straight to
-         * switchTeam() raised a TypeError and 500'd the removal.
-         *
-         * Falling back to any remaining organization keeps them working. Only
-         * when the one they were removed from was their last is the current
-         * organization cleared.
+         * Land them somewhere they still belong. fallbackTeam() is nullable
+         * -- an account can belong to nothing once it is removed here -- so the
+         * null case clears the current organization rather than reaching
+         * switchTeam() with nothing, which raised a TypeError and 500'd the
+         * removal back when this fell through to a personal organization.
          */
         if ($user->isCurrentTeam($team)) {
-            $next = $user->personalTeam() ?? $user->teams()->first();
+            $next = $user->fallbackTeam();
 
             if ($next !== null) {
                 $user->switchTeam($next);

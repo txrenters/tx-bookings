@@ -82,7 +82,6 @@ class MakeSuperAdmin extends Command
              * a shared organization if there is one.
              */
             'current_team_id' => $user->current_team_id ?? Team::query()
-                ->orderBy('is_personal')
                 ->orderBy('name')
                 ->value('id'),
         ])->save();

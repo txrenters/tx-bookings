@@ -17,7 +17,7 @@ type Props = {
     dateRangeTypes: any[];
     schedules: any[];
     teamMembers: any[];
-    isPersonalTeam: boolean;
+    isSoloOrganization: boolean;
     groups: Array<{ id: number; name: string; memberNames: string[] }>;
     canAssignOwner: boolean;
     currentUser: { id: number; name: string };
@@ -110,7 +110,7 @@ setLayoutProps({
             :date-range-types="dateRangeTypes"
             :schedules="schedules"
             :team-members="teamMembers"
-            :is-personal-team="isPersonalTeam"
+            :is-solo-organization="isSoloOrganization"
             :groups="groups"
             :can-assign-owner="canAssignOwner"
             :current-user="currentUser"

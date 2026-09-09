@@ -331,7 +331,7 @@ class EventTypeController extends Controller
                     'name' => $member->name,
                     'email' => $member->email,
                 ]),
-            'isPersonalTeam' => $team->is_personal,
+            'isSoloOrganization' => $team->members()->count() < 2,
             'currentUser' => ['id' => $user->id, 'name' => $user->name],
             'groups' => $team->groups()->with('members:id,name')->orderBy('name')->get()
                 ->map(fn (Group $group) => [

@@ -37,21 +37,19 @@ const updateIsMobile = () => {
 const currentTeam = computed(() => page.props.currentTeam);
 const teams = computed(() => page.props.teams ?? []);
 const canCreateTeam = computed(() => page.props.canCreateTeam);
+
+/**
+ * Only a super admin moves between organizations. Everyone else belongs to
+ * one, so the switcher reads as a label rather than a menu.
+ */
+const canSwitchTeams = computed(() => page.props.isSuperAdmin);
 const menuContentClass = computed(() =>
     props.inHeader
         ? 'w-64'
         : 'w-(--reka-dropdown-menu-trigger-width) min-w-64 rounded-lg',
 );
 
-const subtitleFor = (team: Team) => {
-    const parts = [team.roleLabel ?? 'Organization'];
-
-    if (team.isPersonal) {
-        parts.push('Personal');
-    }
-
-    return parts.join(' · ');
-};
+const subtitleFor = (team: Team) => team.roleLabel ?? 'Organization';
 
 const switchTeam = (team: Team) => {
     // Re-selecting the current organization would only trigger a pointless
@@ -99,15 +97,16 @@ onUnmounted(() => {
 
 <template>
     <DropdownMenu>
-        <DropdownMenuTrigger as-child>
+        <DropdownMenuTrigger as-child :disabled="!canSwitchTeams">
             <Button
                 data-test="team-switcher-trigger"
                 variant="ghost"
-                :class="
+                :class="[
                     props.inHeader
                         ? 'h-9 gap-2 px-2'
-                        : 'h-12 w-full justify-start gap-2 px-2 group-data-[collapsible=icon]:justify-center has-[>svg]:px-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground'
-                "
+                        : 'h-12 w-full justify-start gap-2 px-2 group-data-[collapsible=icon]:justify-center has-[>svg]:px-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground',
+                    canSwitchTeams || 'cursor-default disabled:opacity-100',
+                ]"
             >
                 <span
                     :class="[
@@ -156,6 +155,7 @@ onUnmounted(() => {
                     </span>
                 </div>
                 <ChevronsUpDown
+                    v-if="canSwitchTeams"
                     :class="
                         props.inHeader
                             ? 'size-4 opacity-50'

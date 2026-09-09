@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Enums\TeamRole;
 use App\Models\User;
 use App\Services\Mail\MicrosoftGraphTransport;
 use Carbon\CarbonImmutable;
@@ -34,6 +35,8 @@ class AppServiceProvider extends ServiceProvider
         $this->grantSuperAdminsEveryAbility();
         $this->restrictLogViewerToSuperAdmins();
         $this->restrictUserDirectoryToSuperAdmins();
+        $this->restrictOrganizationDirectoryToSuperAdmins();
+        $this->letAdminsViewTheirPeople();
     }
 
     /**
@@ -120,6 +123,30 @@ class AppServiceProvider extends ServiceProvider
     protected function restrictUserDirectoryToSuperAdmins(): void
     {
         Gate::define('manageUsers', fn (User $user): bool => $user->isSuperAdmin());
+    }
+
+    /**
+     * Let an organization's admins look at the people in it.
+     *
+     * Viewing only: manageUsers still guards the reset link, the role change
+     * and deletion, and the listing itself narrows to the organizations the
+     * viewer actually administers.
+     */
+    protected function letAdminsViewTheirPeople(): void
+    {
+        Gate::define('viewUsers', fn (User $user): bool => $user->isSuperAdmin()
+            || $user->teams()->wherePivot('role', TeamRole::Admin->value)->exists());
+    }
+
+    /**
+     * Keep the organization directory to super admins.
+     *
+     * Creating organizations and looking across all of them is the operator's
+     * job; an organization's own admins manage theirs from its settings.
+     */
+    protected function restrictOrganizationDirectoryToSuperAdmins(): void
+    {
+        Gate::define('manageOrganizations', fn (User $user): bool => $user->isSuperAdmin());
     }
 
     /**

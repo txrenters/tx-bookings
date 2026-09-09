@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
 import {
+    Building2,
     CalendarClock,
     CalendarDays,
     Clock,
@@ -33,6 +34,7 @@ import { index as availabilityIndex } from '@/routes/availability';
 import { index as groupsIndex } from '@/routes/groups';
 import { index as logsIndex } from '@/routes/log-viewer';
 import { index as meetingsIndex } from '@/routes/meetings';
+import { index as organizationsIndex } from '@/routes/organizations';
 import { edit as profileSettings } from '@/routes/profile';
 import { index as schedulingIndex } from '@/routes/scheduling';
 import { index as usersIndex } from '@/routes/users';
@@ -89,6 +91,11 @@ const otherNavItems = computed<NavItem[]>(() => [
         icon: Settings,
         activePrefix: '/settings',
     },
+    // Admins get a read-only view of the people in their organizations; super
+    // admins get the whole installation and the actions that go with it.
+    ...(page.props.canViewUsers
+        ? [{ title: 'Users', href: usersIndex(), icon: UsersRound }]
+        : []),
 ]);
 
 /**
@@ -108,7 +115,11 @@ const adminNavItems = computed<NavItem[]>(() =>
                   // in a tab of its own so the app stays where it was.
                   external: true,
               },
-              { title: 'Users', href: usersIndex(), icon: UsersRound },
+              {
+                  title: 'Organizations',
+                  href: organizationsIndex(),
+                  icon: Building2,
+              },
           ]
         : [],
 );

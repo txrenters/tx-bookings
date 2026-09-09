@@ -37,7 +37,6 @@ import {
 type Organization = {
     id: number;
     name: string;
-    isPersonal: boolean;
     role: string;
     roleLabel: string;
 };
@@ -63,6 +62,7 @@ const props = defineProps<{
     lastPage: number;
     total: number;
     roles: Array<{ value: string; label: string }>;
+    canManage: boolean;
 }>();
 
 const searchTerm = ref(props.search);
@@ -146,7 +146,11 @@ defineOptions({
     <div class="flex h-full flex-1 flex-col gap-6 p-4 sm:p-6">
         <PageHeader
             title="Users"
-            description="Every account in the installation, what they can reach, and whether their calendar is syncing."
+            :description="
+                canManage
+                    ? 'Every account in the installation, what they can reach, and whether their calendar is syncing.'
+                    : 'The people in your organizations, and whether their calendar is syncing.'
+            "
         >
             <template #actions>
                 <p class="text-sm text-muted-foreground">
@@ -181,7 +185,9 @@ defineOptions({
                         <th class="p-4 text-left font-medium">Booking page</th>
                         <th class="p-4 text-left font-medium">Teams</th>
                         <th class="p-4 text-left font-medium">Calendar</th>
-                        <th class="p-4 text-right font-medium">Actions</th>
+                        <th v-if="canManage" class="p-4 text-right font-medium">
+                            Actions
+                        </th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-border">
@@ -229,8 +235,21 @@ defineOptions({
 
                         <td class="p-4">
                             <div class="flex flex-col gap-1">
+                                <template v-if="!canManage">
+                                    <span
+                                        v-for="organization in user.organizations"
+                                        :key="organization.id"
+                                        class="px-2 py-1"
+                                    >
+                                        {{ organization.name }}
+                                        <span class="text-muted-foreground">
+                                            · {{ organization.roleLabel }}
+                                        </span>
+                                    </span>
+                                </template>
                                 <DropdownMenu
                                     v-for="organization in user.organizations"
+                                    v-else
                                     :key="organization.id"
                                 >
                                     <DropdownMenuTrigger as-child>
@@ -330,7 +349,7 @@ defineOptions({
                             </span>
                         </td>
 
-                        <td class="p-4 text-right">
+                        <td v-if="canManage" class="p-4 text-right">
                             <DropdownMenu>
                                 <DropdownMenuTrigger as-child>
                                     <Button
