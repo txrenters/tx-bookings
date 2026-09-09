@@ -7,7 +7,7 @@ import {
     Search,
     SlidersHorizontal,
 } from '@lucide/vue';
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import MeetingDetailPanel from '@/components/scheduling/MeetingDetailPanel.vue';
 import ScopePicker from '@/components/scheduling/ScopePicker.vue';
 import { Badge } from '@/components/ui/badge';
@@ -42,6 +42,8 @@ type Meeting = {
     uid: string;
     status: string;
     statusLabel: string;
+    startsAt: string;
+    endsAt: string;
     dateKey: string;
     dateLabel: string;
     dayLabel: string;
@@ -99,6 +101,29 @@ const canceling = ref<Meeting | null>(null);
 const cancelForm = useForm({ reason: '' });
 const declining = ref<Meeting | null>(null);
 const declineForm = useForm({ reason: '' });
+
+/**
+ * "In progress" is answered against the reader's own clock, which keeps
+ * ticking while the page sits open, so the badge appears and clears on its
+ * own rather than only on a reload.
+ */
+const now = ref(Date.now());
+let clock: ReturnType<typeof setInterval> | null = null;
+
+onMounted(() => {
+    clock = setInterval(() => (now.value = Date.now()), 30000);
+});
+
+onUnmounted(() => {
+    if (clock) {
+        clearInterval(clock);
+    }
+});
+
+const isInProgress = (meeting: Meeting) =>
+    meeting.status === 'confirmed' &&
+    new Date(meeting.startsAt).getTime() <= now.value &&
+    now.value < new Date(meeting.endsAt).getTime();
 
 /**
  * The detail panel and these dialogs are each modal layers, and two open at
@@ -383,7 +408,18 @@ setLayoutProps({
                     >
                         <span class="w-40 shrink-0">
                             <Badge
-                                v-if="meeting.status === 'pending'"
+                                v-if="isInProgress(meeting)"
+                                class="gap-1.5 border-transparent bg-success-muted text-success-muted-foreground"
+                                data-test="in-progress-badge"
+                            >
+                                <span
+                                    class="size-1.5 animate-pulse rounded-full bg-success"
+                                    aria-hidden="true"
+                                />
+                                In progress
+                            </Badge>
+                            <Badge
+                                v-else-if="meeting.status === 'pending'"
                                 variant="secondary"
                                 data-test="pending-badge"
                             >

@@ -180,8 +180,15 @@ class MeetingController extends Controller
                     $now->subWeek()->endOfWeek()->utc(),
                 ])
                 ->orderBy('starts_at'),
-            'past' => $query->where('starts_at', '<', $now)->orderByDesc('starts_at'),
-            default => $query->where('starts_at', '>=', $now)->orderBy('starts_at'),
+            // A meeting is not past until it has ENDED, so one running right
+            // now stays under Upcoming, where its host is looking for it,
+            // rather than dropping into Past the minute it starts.
+            //
+            // ->utc() like the bounds above: $now carries the reader's zone,
+            // and the binding would otherwise send that wall clock time to
+            // MySQL to compare against UTC columns.
+            'past' => $query->where('ends_at', '<=', $now->utc())->orderByDesc('starts_at'),
+            default => $query->where('ends_at', '>', $now->utc())->orderBy('starts_at'),
         };
     }
 
@@ -218,6 +225,9 @@ class MeetingController extends Controller
             'status' => $booking->status->value,
             'statusLabel' => $booking->status->label(),
             'startsAt' => $booking->starts_at->toIso8601String(),
+            // The list marks a meeting in progress against the reader's own
+            // clock, which keeps ticking while the page sits open.
+            'endsAt' => $booking->ends_at->toIso8601String(),
             'dateKey' => $localStart->toDateString(),
             'dateLabel' => $this->dateLabel($localStart, $timezone),
             'dayLabel' => $localStart->format('D'),

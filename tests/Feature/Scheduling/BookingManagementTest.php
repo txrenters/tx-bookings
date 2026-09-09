@@ -560,3 +560,46 @@ test('the reminder does not read the invitees own details back to them', functio
         // The answers still travel: they are what the meeting is about.
         ->and($body)->toContain('**What is the best number to reach you?** +1 346-239-9213');
 });
+
+test('a meeting that is running now stays under upcoming', function () {
+    $running = bookingFor($this->host, $this->eventType, [
+        'name' => 'Halfway through',
+        'starts_at' => CarbonImmutable::parse('2026-09-01 07:45:00', 'UTC'),
+        'ends_at' => CarbonImmutable::parse('2026-09-01 08:15:00', 'UTC'),
+    ]);
+
+    bookingFor($this->host, $this->eventType, [
+        'name' => 'Already over',
+        'starts_at' => CarbonImmutable::parse('2026-09-01 07:00:00', 'UTC'),
+        'ends_at' => CarbonImmutable::parse('2026-09-01 07:30:00', 'UTC'),
+    ]);
+
+    $this->actingAs($this->host)
+        ->get(route('meetings.index', ['current_team' => $this->team->slug]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('meetings', 1)
+            ->where('meetings.0.inviteeName', 'Halfway through')
+            ->where('meetings.0.endsAt', $running->ends_at->toIso8601String()));
+});
+
+test('a finished meeting is listed under past', function () {
+    bookingFor($this->host, $this->eventType, [
+        'name' => 'Already over',
+        'starts_at' => CarbonImmutable::parse('2026-09-01 07:00:00', 'UTC'),
+        'ends_at' => CarbonImmutable::parse('2026-09-01 07:30:00', 'UTC'),
+    ]);
+
+    bookingFor($this->host, $this->eventType, [
+        'name' => 'Halfway through',
+        'starts_at' => CarbonImmutable::parse('2026-09-01 07:45:00', 'UTC'),
+        'ends_at' => CarbonImmutable::parse('2026-09-01 08:15:00', 'UTC'),
+    ]);
+
+    $this->actingAs($this->host)
+        ->get(route('meetings.index', ['current_team' => $this->team->slug, 'filter' => 'past']))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('meetings', 1)
+            ->where('meetings.0.inviteeName', 'Already over'));
+});
