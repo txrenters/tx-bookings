@@ -162,6 +162,9 @@ trait HasTeams
             role: $role?->value,
             roleLabel: $role?->label(),
             isCurrent: $this->isCurrentTeam($team),
+            // The switcher shows the organization's own logo, so it travels
+            // with every UserTeam rather than only the settings payload.
+            logoUrl: $team->logoUrl(),
         );
     }
 

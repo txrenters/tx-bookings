@@ -36,6 +36,7 @@ const updateIsMobile = () => {
 
 const currentTeam = computed(() => page.props.currentTeam);
 const teams = computed(() => page.props.teams ?? []);
+const canCreateTeam = computed(() => page.props.canCreateTeam);
 const menuContentClass = computed(() =>
     props.inHeader
         ? 'w-64'
@@ -110,14 +111,23 @@ onUnmounted(() => {
             >
                 <span
                     :class="[
-                        'flex shrink-0 items-center justify-center rounded-lg bg-sidebar-primary font-semibold text-sidebar-primary-foreground',
+                        'flex shrink-0 items-center justify-center overflow-hidden rounded-lg font-semibold',
+                        currentTeam?.logoUrl
+                            ? 'bg-card'
+                            : 'bg-sidebar-primary text-sidebar-primary-foreground',
                         props.inHeader
                             ? 'size-6 text-[10px]'
                             : 'size-8 text-xs',
                     ]"
                     aria-hidden="true"
                 >
-                    <template v-if="currentTeam?.name">
+                    <img
+                        v-if="currentTeam?.logoUrl"
+                        :src="currentTeam.logoUrl"
+                        :alt="''"
+                        class="size-full object-cover"
+                    />
+                    <template v-else-if="currentTeam?.name">
                         {{ getInitials(currentTeam.name) }}
                     </template>
                     <Users v-else class="size-4" />
@@ -173,10 +183,16 @@ onUnmounted(() => {
                 @click="switchTeam(team)"
             >
                 <span
-                    class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-xs font-semibold text-foreground"
+                    class="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-background text-xs font-semibold text-foreground"
                     aria-hidden="true"
                 >
-                    {{ getInitials(team.name) }}
+                    <img
+                        v-if="team.logoUrl"
+                        :src="team.logoUrl"
+                        :alt="''"
+                        class="size-full object-cover"
+                    />
+                    <template v-else>{{ getInitials(team.name) }}</template>
                 </span>
                 <div class="grid min-w-0 flex-1 leading-tight">
                     <span class="truncate text-sm font-medium">
@@ -191,24 +207,26 @@ onUnmounted(() => {
                     class="ml-auto size-4 shrink-0"
                 />
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <CreateTeamModal>
-                <DropdownMenuItem
-                    data-test="team-switcher-new-team"
-                    class="cursor-pointer gap-2 p-2"
-                    @select.prevent
-                >
-                    <span
-                        class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-dashed border-border bg-transparent"
-                        aria-hidden="true"
+            <template v-if="canCreateTeam">
+                <DropdownMenuSeparator />
+                <CreateTeamModal>
+                    <DropdownMenuItem
+                        data-test="team-switcher-new-team"
+                        class="cursor-pointer gap-2 p-2"
+                        @select.prevent
                     >
-                        <Plus class="size-4 text-muted-foreground" />
-                    </span>
-                    <span class="font-medium text-muted-foreground">
-                        New organization
-                    </span>
-                </DropdownMenuItem>
-            </CreateTeamModal>
+                        <span
+                            class="flex size-8 shrink-0 items-center justify-center rounded-lg border border-dashed border-border bg-transparent"
+                            aria-hidden="true"
+                        >
+                            <Plus class="size-4 text-muted-foreground" />
+                        </span>
+                        <span class="font-medium text-muted-foreground">
+                            New organization
+                        </span>
+                    </DropdownMenuItem>
+                </CreateTeamModal>
+            </template>
         </DropdownMenuContent>
     </DropdownMenu>
 </template>
