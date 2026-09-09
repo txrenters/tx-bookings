@@ -191,6 +191,16 @@ class Booking extends Model
     }
 
     /**
+     * Get the automations queued against the booking.
+     *
+     * @return HasMany<AutomationRun, $this>
+     */
+    public function automationRuns(): HasMany
+    {
+        return $this->hasMany(AutomationRun::class);
+    }
+
+    /**
      * Get the scheduled reminders for the booking.
      *
      * @return HasMany<BookingReminder, $this>
