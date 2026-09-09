@@ -318,9 +318,12 @@ class EventTypeController extends Controller
                 ->orderByDesc('is_default')
                 ->orderBy('name')
                 ->get()
+                // The organization's shared hours apply to every host, which is
+                // why they are worth offering here rather than only per person.
+                ->concat($team->availabilitySchedules()->with('rules')->orderBy('name')->get())
                 ->map(fn ($schedule) => [
                     'id' => $schedule->id,
-                    'name' => $schedule->name,
+                    'name' => $schedule->isShared() ? $schedule->name.' (shared)' : $schedule->name,
                     'timezone' => $schedule->timezone,
                     'isDefault' => $schedule->is_default,
                     'summary' => $schedule->summary(),

@@ -19,6 +19,7 @@ class SaveAvailabilityScheduleRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'timezone' => ['required', 'string', Rule::in(timezone_identifiers_list())],
             'is_default' => ['boolean'],
+            'is_shared' => ['boolean'],
             'is_active' => ['boolean'],
 
             'rules' => ['array', 'max:70'],

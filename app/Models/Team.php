@@ -118,6 +118,16 @@ class Team extends Model
     }
 
     /**
+     * Get the schedules shared across the organization.
+     *
+     * @return HasMany<AvailabilitySchedule, $this>
+     */
+    public function availabilitySchedules(): HasMany
+    {
+        return $this->hasMany(AvailabilitySchedule::class);
+    }
+
+    /**
      * Get the event types that belong to this team.
      *
      * @return HasMany<EventType, $this>

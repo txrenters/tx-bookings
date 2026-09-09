@@ -32,16 +32,25 @@ class AvailabilityScheduleController extends Controller
      */
     public function index(Request $request, Team $current_team): Response
     {
-        $schedules = $request->user()
-            ->availabilitySchedules()
+        $user = $request->user();
+
+        $schedules = $user->availabilitySchedules()
             ->with(['rules', 'overrides'])
             ->withCount('eventTypes')
             ->orderByDesc('is_default')
             ->orderBy('name')
             ->get();
 
+        $shared = $current_team->availabilitySchedules()
+            ->with(['rules', 'overrides'])
+            ->withCount('eventTypes')
+            ->orderBy('name')
+            ->get();
+
         return Inertia::render('scheduling/availability/Index', [
             'schedules' => $schedules->map(fn (AvailabilitySchedule $schedule) => $this->toPayload($schedule)),
+            'sharedSchedules' => $shared->map(fn (AvailabilitySchedule $schedule) => $this->toPayload($schedule)),
+            'canManageShared' => $user->can('createShared', [AvailabilitySchedule::class, $current_team]),
             'timezones' => timezone_identifiers_list(),
         ]);
     }
@@ -155,7 +164,16 @@ class AvailabilityScheduleController extends Controller
     {
         Gate::authorize('create', AvailabilitySchedule::class);
 
-        $saveSchedule->handle($request->user(), $request->validated());
+        $owner = $request->user();
+
+        // Hours kept on the organization's behalf are an administrator's.
+        if ($request->boolean('is_shared')) {
+            Gate::authorize('createShared', [AvailabilitySchedule::class, $current_team]);
+
+            $owner = $current_team;
+        }
+
+        $saveSchedule->handle($owner, $request->validated());
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Schedule created.')]);
 
@@ -173,7 +191,11 @@ class AvailabilityScheduleController extends Controller
     ): RedirectResponse {
         Gate::authorize('update', $availability);
 
-        $saveSchedule->handle($request->user(), $request->validated(), $availability);
+        $saveSchedule->handle(
+            $availability->isShared() ? $availability->team : $request->user(),
+            $request->validated(),
+            $availability,
+        );
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Availability updated.')]);
 
@@ -206,6 +228,7 @@ class AvailabilityScheduleController extends Controller
             'name' => $schedule->name,
             'timezone' => $schedule->timezone,
             'isDefault' => $schedule->is_default,
+            'isShared' => $schedule->isShared(),
             'isActive' => $schedule->is_active,
             'eventTypeCount' => $schedule->event_types_count,
             'summary' => $schedule->summary(),

@@ -11,6 +11,7 @@ import {
     Plus,
     Repeat,
     Star,
+    Users2,
     Trash2,
 } from '@lucide/vue';
 import { computed, ref } from 'vue';
@@ -31,6 +32,7 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -61,6 +63,7 @@ type Schedule = {
     timezone: string;
     isDefault: boolean;
     isActive: boolean;
+    isShared: boolean;
     eventTypeCount: number;
     summary: string | null;
     rules: Rule[];
@@ -69,6 +72,9 @@ type Schedule = {
 
 type Props = {
     schedules: Schedule[];
+    /** Hours the organization keeps, which govern every host of an event type. */
+    sharedSchedules: Schedule[];
+    canManageShared: boolean;
     timezones: string[];
 };
 
@@ -87,14 +93,22 @@ const days = [
     { value: 6, initial: 'S', name: 'Saturday' },
 ];
 
+/** Personal hours first, then the organization's, in one switcher. */
+const allSchedules = computed(() => [
+    ...props.schedules,
+    ...props.sharedSchedules,
+]);
+
 const selectedId = ref<number | null>(props.schedules[0]?.id ?? null);
 const creating = ref(false);
+const creatingShared = ref(false);
 const deleting = ref(false);
 
 const selected = computed(
     () =>
-        props.schedules.find((schedule) => schedule.id === selectedId.value) ??
-        null,
+        allSchedules.value.find(
+            (schedule) => schedule.id === selectedId.value,
+        ) ?? null,
 );
 
 /**
@@ -102,7 +116,9 @@ const selected = computed(
  * switcher renders a blank label when nothing is selected, leaving no visible
  * way to make the first one. Show a real empty state instead.
  */
-const isEmpty = computed(() => props.schedules.length === 0 && !creating.value);
+const isEmpty = computed(
+    () => allSchedules.value.length === 0 && !creating.value,
+);
 
 const buildForm = (schedule: Schedule | null) =>
     useForm({
@@ -113,6 +129,7 @@ const buildForm = (schedule: Schedule | null) =>
             'UTC',
         is_default: schedule?.isDefault ?? props.schedules.length === 0,
         is_active: schedule?.isActive ?? true,
+        is_shared: schedule?.isShared ?? creatingShared.value,
         rules: schedule ? schedule.rules.map((rule) => ({ ...rule })) : [],
         overrides: schedule
             ? schedule.overrides.map((override) => ({ ...override }))
@@ -127,8 +144,9 @@ const selectSchedule = (schedule: Schedule) => {
     form.value = buildForm(schedule);
 };
 
-const startCreating = () => {
+const startCreating = (shared = false) => {
     creating.value = true;
+    creatingShared.value = shared;
     selectedId.value = null;
     form.value = buildForm(null);
 };
@@ -300,6 +318,15 @@ setLayoutProps({
                                 >
                                     Disabled
                                 </span>
+                                <span
+                                    v-if="
+                                        (creating && creatingShared) ||
+                                        (selected?.isShared && !creating)
+                                    "
+                                    class="rounded-md bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground uppercase"
+                                >
+                                    Shared
+                                </span>
                                 <ChevronDown class="size-4" />
                             </button>
                         </DropdownMenuTrigger>
@@ -316,12 +343,37 @@ setLayoutProps({
                                 />
                                 {{ schedule.name }}
                             </DropdownMenuItem>
-                            <DropdownMenuSeparator v-if="schedules.length" />
+                            <template v-if="sharedSchedules.length">
+                                <DropdownMenuSeparator />
+                                <DropdownMenuLabel
+                                    class="text-xs text-muted-foreground"
+                                >
+                                    Shared by the organization
+                                </DropdownMenuLabel>
+                                <DropdownMenuItem
+                                    v-for="schedule in sharedSchedules"
+                                    :key="schedule.id"
+                                    :data-test="`schedule-${schedule.id}`"
+                                    @select="selectSchedule(schedule)"
+                                >
+                                    <Users2 class="size-3.5" />
+                                    {{ schedule.name }}
+                                </DropdownMenuItem>
+                            </template>
+
+                            <DropdownMenuSeparator v-if="allSchedules.length" />
                             <DropdownMenuItem
                                 data-test="new-schedule"
-                                @select="startCreating"
+                                @select="startCreating(false)"
                             >
                                 <Plus class="size-4" /> New schedule
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                v-if="canManageShared"
+                                data-test="new-shared-schedule"
+                                @select="startCreating(true)"
+                            >
+                                <Users2 class="size-4" /> New shared schedule
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>

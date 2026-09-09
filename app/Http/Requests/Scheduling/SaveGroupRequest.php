@@ -22,6 +22,12 @@ class SaveGroupRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:255'],
+            // Only hours the organization shares: a person's own are theirs.
+            'availability_schedule_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('availability_schedules', 'id')->where('team_id', $teamId),
+            ],
             'member_ids' => ['required', 'array', 'min:1'],
             'member_ids.*' => [
                 'integer',

@@ -3,6 +3,7 @@
 namespace App\Actions\Scheduling;
 
 use App\Models\AvailabilitySchedule;
+use App\Models\Team;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -11,11 +12,14 @@ class SaveAvailabilitySchedule
     /**
      * Create or update a schedule together with its rules and overrides.
      *
+     * The owner is a person for personal hours, or an organization for hours
+     * shared by whoever hosts an event type.
+     *
      * @param  array<string, mixed>  $attributes
      */
-    public function handle(User $user, array $attributes, ?AvailabilitySchedule $schedule = null): AvailabilitySchedule
+    public function handle(User|Team $owner, array $attributes, ?AvailabilitySchedule $schedule = null): AvailabilitySchedule
     {
-        return DB::transaction(function () use ($user, $attributes, $schedule) {
+        return DB::transaction(function () use ($owner, $attributes, $schedule) {
             $rules = $attributes['rules'] ?? [];
             $overrides = $attributes['overrides'] ?? [];
 
@@ -24,13 +28,15 @@ class SaveAvailabilitySchedule
             $isDefault = (bool) ($attributes['is_default'] ?? false);
 
             if ($schedule === null) {
-                $schedule = $user->availabilitySchedules()->create($attributes);
+                $schedule = $owner->availabilitySchedules()->create($attributes);
             } else {
                 $schedule->update($attributes);
             }
 
+            // One default per owner: an organization's shared schedules have
+            // their own, separate from anyone's personal default.
             if ($isDefault) {
-                $user->availabilitySchedules()
+                $owner->availabilitySchedules()
                     ->whereKeyNot($schedule->id)
                     ->update(['is_default' => false]);
             }

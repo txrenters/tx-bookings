@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Scheduling;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Scheduling\SaveGroupRequest;
+use App\Models\AvailabilitySchedule;
 use App\Models\Group;
 use App\Models\Team;
 use App\Models\User;
@@ -24,7 +25,7 @@ class GroupController extends Controller
         Gate::authorize('viewAny', Group::class);
 
         $groups = $current_team->groups()
-            ->with(['members:id,name,email', 'team:id,slug'])
+            ->with(['members:id,name,email', 'team:id,slug', 'availabilitySchedule:id,name'])
             ->withCount('eventTypes')
             ->orderBy('name')
             ->get();
@@ -38,6 +39,13 @@ class GroupController extends Controller
                     'email' => $member->email,
                 ]),
             'canManage' => $request->user()->can('create', [Group::class, $current_team]),
+            'sharedSchedules' => $current_team->availabilitySchedules()
+                ->orderBy('name')
+                ->get(['id', 'name'])
+                ->map(fn (AvailabilitySchedule $schedule) => [
+                    'value' => $schedule->id,
+                    'label' => $schedule->name,
+                ]),
         ]);
     }
 
@@ -49,7 +57,9 @@ class GroupController extends Controller
         Gate::authorize('create', [Group::class, $current_team]);
 
         DB::transaction(function () use ($request, $current_team) {
-            $group = $current_team->groups()->create($request->safe()->only(['name', 'description']));
+            $group = $current_team->groups()->create(
+                $request->safe()->only(['name', 'description', 'availability_schedule_id']),
+            );
 
             $this->syncMembers($group, $request->validated('member_ids'));
         });
@@ -67,7 +77,7 @@ class GroupController extends Controller
         Gate::authorize('update', $group);
 
         DB::transaction(function () use ($request, $group) {
-            $group->update($request->safe()->only(['name', 'description']));
+            $group->update($request->safe()->only(['name', 'description', 'availability_schedule_id']));
 
             $this->syncMembers($group, $request->validated('member_ids'));
         });
@@ -121,6 +131,8 @@ class GroupController extends Controller
             'slug' => $group->slug,
             'name' => $group->name,
             'description' => $group->description,
+            'availabilityScheduleId' => $group->availability_schedule_id,
+            'availabilityScheduleName' => $group->availabilitySchedule?->name,
             'eventTypeCount' => $group->event_types_count,
             /*
              * Each team has its own public landing page listing just its event

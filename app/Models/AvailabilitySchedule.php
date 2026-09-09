@@ -13,19 +13,21 @@ use Illuminate\Support\Carbon;
 
 /**
  * @property int $id
- * @property int $user_id
+ * @property int|null $user_id
+ * @property int|null $team_id
  * @property string $name
  * @property string $timezone
  * @property bool $is_default
  * @property bool $is_active
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
- * @property-read User $user
+ * @property-read User|null $user
+ * @property-read Team|null $team
  * @property-read Collection<int, AvailabilityRule> $rules
  * @property-read Collection<int, AvailabilityOverride> $overrides
  * @property-read Collection<int, EventType> $eventTypes
  */
-#[Fillable(['user_id', 'name', 'timezone', 'is_default', 'is_active'])]
+#[Fillable(['user_id', 'team_id', 'name', 'timezone', 'is_default', 'is_active'])]
 class AvailabilitySchedule extends Model
 {
     /** @use HasFactory<AvailabilityScheduleFactory> */
@@ -62,6 +64,25 @@ class AvailabilitySchedule extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Get the organization the schedule is shared across, if any.
+     *
+     * @return BelongsTo<Team, $this>
+     */
+    public function team(): BelongsTo
+    {
+        return $this->belongsTo(Team::class);
+    }
+
+    /**
+     * Determine whether the schedule belongs to an organization rather than a
+     * person. A shared schedule governs every host of an event type using it.
+     */
+    public function isShared(): bool
+    {
+        return $this->team_id !== null;
     }
 
     /**

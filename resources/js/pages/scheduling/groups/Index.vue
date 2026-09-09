@@ -36,6 +36,8 @@ type Group = {
     slug: string;
     name: string;
     description: string | null;
+    availabilityScheduleId: number | null;
+    availabilityScheduleName: string | null;
     eventTypeCount: number;
     bookingUrl: string;
     members: Member[];
@@ -46,6 +48,8 @@ type Props = {
     groups: Group[];
     teamMembers: Member[];
     canManage: boolean;
+    /** Hours the organization shares, selectable as this team's own. */
+    sharedSchedules: Array<{ value: number; label: string }>;
 };
 
 defineProps<Props>();
@@ -64,6 +68,7 @@ const deleting = ref<Group | null>(null);
 const form = useForm({
     name: '',
     description: '',
+    availability_schedule_id: null as number | null,
     member_ids: [] as number[],
 });
 
@@ -79,6 +84,7 @@ const openEdit = (group: Group) => {
     form.clearErrors();
     form.name = group.name;
     form.description = group.description ?? '';
+    form.availability_schedule_id = group.availabilityScheduleId;
     form.member_ids = [...group.memberIds];
     panelOpen.value = true;
 };
@@ -145,6 +151,12 @@ setLayoutProps({
                 <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">
                         <p class="font-medium">{{ group.name }}</p>
+                        <p
+                            v-if="group.availabilityScheduleName"
+                            class="mt-1 text-xs text-muted-foreground"
+                        >
+                            Hours: {{ group.availabilityScheduleName }}
+                        </p>
                         <p
                             v-if="group.description"
                             class="mt-0.5 text-sm text-muted-foreground"
@@ -255,6 +267,33 @@ setLayoutProps({
                         placeholder="Who is in this team?"
                     />
                     <InputError :message="form.errors.description" />
+                </div>
+
+                <div class="grid gap-1.5">
+                    <Label for="group-schedule">Hours</Label>
+                    <select
+                        id="group-schedule"
+                        v-model="form.availability_schedule_id"
+                        class="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+                        data-test="group-schedule"
+                    >
+                        <option :value="null">Each member's own hours</option>
+                        <option
+                            v-for="schedule in sharedSchedules"
+                            :key="schedule.value"
+                            :value="schedule.value"
+                        >
+                            {{ schedule.label }}
+                        </option>
+                    </select>
+                    <p class="text-xs text-muted-foreground">
+                        Shared hours become this team's bookable window whoever
+                        the booking lands on. Create them on the Availability
+                        page.
+                    </p>
+                    <InputError
+                        :message="form.errors.availability_schedule_id"
+                    />
                 </div>
 
                 <div class="grid gap-2">

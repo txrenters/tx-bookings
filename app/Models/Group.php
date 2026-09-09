@@ -21,13 +21,14 @@ use Illuminate\Support\Str;
  * @property string $name
  * @property string $slug
  * @property string|null $description
+ * @property int|null $availability_schedule_id
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Team $team
  * @property-read Collection<int, User> $members
  * @property-read Collection<int, EventType> $eventTypes
  */
-#[Fillable(['team_id', 'name', 'slug', 'description'])]
+#[Fillable(['team_id', 'name', 'slug', 'description', 'availability_schedule_id'])]
 class Group extends Model
 {
     /** @use HasFactory<GroupFactory> */
@@ -55,6 +56,16 @@ class Group extends Model
     public function team(): BelongsTo
     {
         return $this->belongsTo(Team::class);
+    }
+
+    /**
+     * Get the hours the team keeps, if it keeps its own.
+     *
+     * @return BelongsTo<AvailabilitySchedule, $this>
+     */
+    public function availabilitySchedule(): BelongsTo
+    {
+        return $this->belongsTo(AvailabilitySchedule::class);
     }
 
     /**
