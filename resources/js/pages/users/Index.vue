@@ -248,7 +248,7 @@ defineOptions({
 
         <div
             v-if="users.length"
-            class="overflow-x-auto rounded-xl border border-border bg-card"
+            class="overflow-x-auto rounded-xl border border-border bg-card shadow-flat"
         >
             <table class="w-full text-sm">
                 <thead class="border-b border-border text-muted-foreground">

@@ -406,7 +406,7 @@ setLayoutProps({
                             'flex w-full cursor-pointer flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border p-4 text-left transition-colors',
                             selected?.uid === meeting.uid
                                 ? 'border-primary bg-accent/50'
-                                : 'bg-background hover:bg-accent/30',
+                                : 'bg-card shadow-flat hover:bg-accent/30 hover:shadow-raised',
                         ]"
                         @click="selected = meeting"
                     >

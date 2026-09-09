@@ -905,3 +905,33 @@ test('a pooled event type pointed at no team is listed under Shared with no page
             ->where('eventTypes.0.ownerName', 'Shared')
             ->where('eventTypes.0.ownerLandingUrl', null));
 });
+
+test('a super admin can update somebody elses event type', function () {
+    $team = Team::factory()->create();
+    $owner = User::factory()->create();
+    $superAdmin = User::factory()->create(['is_super_admin' => true]);
+
+    $team->members()->attach($owner, ['role' => TeamRole::Admin->value]);
+
+    $schedule = AvailabilitySchedule::factory()->for($owner)->create();
+
+    $eventType = EventType::factory()->ownedBy($owner)->create([
+        'team_id' => $team->id,
+        'availability_schedule_id' => $schedule->id,
+    ]);
+
+    // The schedule belongs to the owner, not to the operator editing it.
+    $this->actingAs($superAdmin)
+        ->patch(route('scheduling.update', [
+            'current_team' => $team->slug,
+            'event_type' => $eventType->slug,
+        ]), eventTypePayload([
+            'name' => 'Renamed by the operator',
+            'slug' => $eventType->slug,
+            'user_id' => $owner->id,
+            'availability_schedule_id' => $schedule->id,
+        ]))
+        ->assertSessionHasNoErrors();
+
+    expect($eventType->fresh()->name)->toBe('Renamed by the operator');
+});

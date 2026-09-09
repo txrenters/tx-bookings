@@ -109,7 +109,9 @@ setLayoutProps({
                 </p>
             </div>
 
-            <section class="rounded-xl border p-6">
+            <section
+                class="rounded-xl border border-border bg-card p-6 shadow-flat"
+            >
                 <h3 class="font-semibold">Meeting limits</h3>
                 <p class="mt-1 text-sm text-muted-foreground">
                     Set a maximum number of total meetings. You can also set
@@ -184,7 +186,9 @@ setLayoutProps({
                 </Button>
             </section>
 
-            <section class="rounded-xl border p-6">
+            <section
+                class="rounded-xl border border-border bg-card p-6 shadow-flat"
+            >
                 <h3 class="font-semibold">Holidays</h3>
                 <p class="mt-1 text-sm text-muted-foreground">
                     You are automatically marked as unavailable for the selected

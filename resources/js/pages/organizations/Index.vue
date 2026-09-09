@@ -162,7 +162,7 @@ defineOptions({
             <section
                 v-for="organization in organizations"
                 :key="organization.id"
-                class="rounded-xl border border-border bg-card"
+                class="rounded-xl border border-border bg-card shadow-flat"
                 data-test="organization-card"
             >
                 <header

@@ -263,7 +263,7 @@ setLayoutProps({
 
         <AvailabilityTabs />
 
-        <div class="rounded-xl border">
+        <div class="rounded-xl border border-border bg-card shadow-flat">
             <div
                 v-if="isEmpty"
                 class="flex flex-col items-center gap-3 p-12 text-center"

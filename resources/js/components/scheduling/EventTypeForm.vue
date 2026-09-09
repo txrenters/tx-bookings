@@ -529,7 +529,7 @@ const removeOption = (question: Record<string, any>, index: number) => {
             <div
                 v-for="(question, index) in fields.questions ?? []"
                 :key="index"
-                class="space-y-3 rounded-lg border p-4"
+                class="space-y-3 rounded-lg border border-border bg-card p-4 shadow-flat"
             >
                 <div class="grid gap-3 sm:grid-cols-[1fr_12rem]">
                     <div class="grid gap-2">

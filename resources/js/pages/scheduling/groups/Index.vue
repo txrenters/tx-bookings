@@ -146,7 +146,7 @@ setLayoutProps({
                 v-for="group in groups"
                 :key="group.id"
                 data-test="group-card"
-                class="flex flex-col rounded-lg border p-5"
+                class="flex flex-col rounded-lg border border-border bg-card p-5 shadow-flat"
             >
                 <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">

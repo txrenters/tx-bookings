@@ -139,7 +139,7 @@ setLayoutProps({
             <section
                 v-for="account in accounts"
                 :key="account.id"
-                class="rounded-xl border"
+                class="rounded-xl border border-border bg-card shadow-flat"
                 data-test="calendar-settings-account"
             >
                 <header

@@ -388,7 +388,7 @@ const submitProfile = () => {
                     v-for="member in members"
                     :key="member.id"
                     data-test="member-row"
-                    class="flex items-center justify-between rounded-lg border p-4"
+                    class="flex items-center justify-between rounded-lg border border-border bg-card p-4"
                 >
                     <div class="flex items-center gap-4">
                         <Avatar class="h-10 w-10">
@@ -487,7 +487,7 @@ const submitProfile = () => {
                     v-for="invitation in invitations"
                     :key="invitation.code"
                     data-test="invitation-row"
-                    class="flex items-center justify-between rounded-lg border p-4"
+                    class="flex items-center justify-between rounded-lg border border-border bg-card p-4"
                 >
                     <div class="flex items-center gap-4">
                         <div

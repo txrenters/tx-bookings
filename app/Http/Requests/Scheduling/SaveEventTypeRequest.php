@@ -49,9 +49,23 @@ class SaveEventTypeRequest extends FormRequest
             'range_ends_on' => ['nullable', 'date', 'after_or_equal:range_starts_on', 'required_if:date_range_type,fixed_range'],
             'location_type' => ['required', Rule::enum(LocationType::class)],
             'location_detail' => ['nullable', 'string', 'max:500'],
+            /*
+             * The schedule has to belong to the event type's OWNER, not to
+             * whoever is filling the form in. A super admin or an admin
+             * editing someone else's event type submits that person's
+             * schedule, and requiring their own rejected every such save with
+             * "the selected availability schedule id is invalid".
+             *
+             * A schedule the organization shares is allowed too: those are the
+             * hours an event type keeps whoever hosts it.
+             */
             'availability_schedule_id' => [
                 'nullable',
-                Rule::exists('availability_schedules', 'id')->where('user_id', $this->user()->id),
+                Rule::exists('availability_schedules', 'id')->where(
+                    fn ($query) => $query
+                        ->where(fn ($owned) => $owned->where('user_id', $this->ownerId()))
+                        ->orWhere(fn ($shared) => $shared->where('team_id', $teamId)),
+                ),
             ],
             'is_active' => ['boolean'],
             'is_hidden' => ['boolean'],
@@ -84,6 +98,25 @@ class SaveEventTypeRequest extends FormRequest
             'questions.*.options.*' => ['string', 'max:255'],
             'questions.*.is_required' => ['boolean'],
         ];
+    }
+
+    /**
+     * Get the id of the person the event type belongs to.
+     *
+     * The submitted owner when one is given, the existing owner when editing,
+     * and otherwise whoever is creating it.
+     */
+    protected function ownerId(): int
+    {
+        $submitted = $this->input('user_id');
+
+        if (filled($submitted)) {
+            return (int) $submitted;
+        }
+
+        $eventType = $this->route('event_type');
+
+        return $eventType instanceof EventType ? $eventType->user_id : (int) $this->user()->id;
     }
 
     /**
