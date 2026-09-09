@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Team;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -50,6 +51,8 @@ class HandleInertiaRequests extends Middleware
             'unreadNotifications' => fn () => $user?->unreadNotifications()->count() ?? 0,
             // Gates the Logs nav entry; the controller enforces it as well.
             'isSuperAdmin' => (bool) $user?->isSuperAdmin(),
+            // Hides "New organization" in the switcher; TeamPolicy enforces it.
+            'canCreateTeam' => (bool) $user?->can('create', Team::class),
         ];
     }
 }

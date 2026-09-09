@@ -22,6 +22,7 @@ declare module '@inertiajs/core' {
             sidebarOpen: boolean;
             currentTeam: Team | null;
             teams: Team[];
+            canCreateTeam: boolean;
             [key: string]: unknown;
         };
     }

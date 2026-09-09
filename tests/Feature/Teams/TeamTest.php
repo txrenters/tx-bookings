@@ -5,6 +5,21 @@ use App\Models\Team;
 use App\Models\User;
 use Inertia\Testing\AssertableInertia as Assert;
 
+/**
+ * Give the user standing to create organizations: ownership of a real one.
+ *
+ * A personal organization does not count, so the factory's own team is not
+ * enough — see TeamPolicy::create.
+ */
+function ownerOfAnOrganization(User $user): Team
+{
+    $team = Team::factory()->create();
+
+    $team->members()->attach($user, ['role' => TeamRole::Owner->value]);
+
+    return $team;
+}
+
 test('the teams index page can be rendered', function () {
     $user = User::factory()->create();
 
@@ -17,6 +32,7 @@ test('the teams index page can be rendered', function () {
 
 test('teams can be created', function () {
     $user = User::factory()->create();
+    ownerOfAnOrganization($user);
 
     $response = $this
         ->actingAs($user)
@@ -34,6 +50,7 @@ test('teams can be created', function () {
 
 test('team slug uses next available suffix', function () {
     $user = User::factory()->create();
+    ownerOfAnOrganization($user);
 
     Team::factory()->create(['name' => 'Acme', 'slug' => 'acme']);
     Team::factory()->create(['name' => 'Acme One', 'slug' => 'acme-1']);
@@ -392,4 +409,53 @@ test('guests cannot access teams', function () {
     $response = $this->get(route('teams.index'));
 
     $response->assertRedirect(route('login'));
+});
+
+test('a plain member cannot create another organization', function () {
+    $team = Team::factory()->create();
+    $member = User::factory()->create();
+
+    $team->members()->attach($member, ['role' => TeamRole::Member->value]);
+    $member->switchTeam($team);
+
+    $this->actingAs($member)
+        ->post(route('teams.store'), ['name' => 'Side Project'])
+        ->assertForbidden();
+
+    $this->assertDatabaseMissing('teams', ['name' => 'Side Project']);
+});
+
+test('an admin can create another organization', function () {
+    $team = Team::factory()->create();
+    $admin = User::factory()->create();
+
+    $team->members()->attach($admin, ['role' => TeamRole::Admin->value]);
+
+    $this->actingAs($admin)
+        ->post(route('teams.store'), ['name' => 'Second Org'])
+        ->assertRedirect();
+
+    $this->assertDatabaseHas('teams', ['name' => 'Second Org']);
+});
+
+test('a personal organization is not standing enough to create another', function () {
+    // The factory user owns only the personal organization registration gives.
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('teams.store'), ['name' => 'Nope'])
+        ->assertForbidden();
+});
+
+test('the create organization entry is hidden from a member', function () {
+    $team = Team::factory()->create();
+    $member = User::factory()->create();
+
+    $team->members()->attach($member, ['role' => TeamRole::Member->value]);
+    $member->switchTeam($team);
+
+    $this->actingAs($member)
+        ->get(route('teams.index'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->where('canCreateTeam', false));
 });

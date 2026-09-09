@@ -39,6 +39,8 @@ class TeamController extends Controller
      */
     public function store(SaveTeamRequest $request, CreateTeam $createTeam): RedirectResponse
     {
+        Gate::authorize('create', Team::class);
+
         $team = $createTeam->handle($request->user(), $request->validated('name'));
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Organization created.')]);
@@ -64,7 +66,10 @@ class TeamController extends Controller
                 'websiteUrl' => $team->website_url,
                 'timezone' => $team->timezone,
             ],
-            'members' => $team->members()->get()->map(function (User $member) {
+            // Super admins operate across organizations rather than belonging
+            // to one, so they stay off the roster people manage here. They keep
+            // their place in the scheduling pickers, where they may host.
+            'members' => $team->members()->where('users.is_super_admin', false)->get()->map(function (User $member) {
                 /** @var Membership $membership */
                 $membership = $member->getRelation('pivot');
 

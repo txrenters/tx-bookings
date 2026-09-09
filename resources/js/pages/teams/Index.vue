@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, usePage } from '@inertiajs/vue3';
 import { Eye, LogOut, Pencil, Plus } from '@lucide/vue';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import CreateTeamModal from '@/components/CreateTeamModal.vue';
 import Heading from '@/components/Heading.vue';
 import LeaveTeamModal from '@/components/LeaveTeamModal.vue';
@@ -21,6 +21,10 @@ type Props = {
 };
 
 defineProps<Props>();
+
+const page = usePage();
+
+const canCreateTeam = computed(() => page.props.canCreateTeam);
 
 const leaveTeamDialogOpen = ref(false);
 const teamLeaving = ref<Team | null>(null);
@@ -57,7 +61,7 @@ defineOptions({
                 description="Manage your organizations and memberships"
             />
 
-            <CreateTeamModal>
+            <CreateTeamModal v-if="canCreateTeam">
                 <Button data-test="teams-new-team-button">
                     <Plus /> New organization
                 </Button>

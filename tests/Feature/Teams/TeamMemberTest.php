@@ -188,3 +188,19 @@ test('a removed member with a personal organization lands on it', function () {
 
     expect($member->fresh()->current_team_id)->toBe($personal->id);
 });
+
+test('a super admin is left off the organizations member roster', function () {
+    $team = Team::factory()->create();
+    $owner = User::factory()->create();
+    $operator = User::factory()->create(['is_super_admin' => true]);
+
+    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($operator, ['role' => TeamRole::Admin->value]);
+
+    $this->actingAs($owner)
+        ->get(route('teams.edit', ['team' => $team->slug]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('members', 1)
+            ->where('members.0.email', $owner->email));
+});

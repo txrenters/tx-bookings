@@ -3,6 +3,7 @@
 namespace App\Policies;
 
 use App\Enums\TeamPermission;
+use App\Enums\TeamRole;
 use App\Models\Team;
 use App\Models\User;
 
@@ -26,10 +27,19 @@ class TeamPolicy
 
     /**
      * Determine whether the user can create models.
+     *
+     * Running a real organization is the prerequisite for starting another
+     * one, so a plain member cannot. Personal organizations are excluded
+     * deliberately: registration hands every account one and its owner role
+     * would otherwise let everybody through, which is the opposite of the
+     * rule. Super admins are covered by the central Gate::before grant.
      */
     public function create(User $user): bool
     {
-        return true;
+        return $user->teams()
+            ->where('teams.is_personal', false)
+            ->wherePivotIn('role', [TeamRole::Owner->value, TeamRole::Admin->value])
+            ->exists();
     }
 
     /**
