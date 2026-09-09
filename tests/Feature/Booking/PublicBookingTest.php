@@ -610,3 +610,46 @@ test('a pooled event type names nobody, since it is assigned when booked', funct
         ->assertOk()
         ->assertInertia(fn ($page) => $page->where('eventType.hostNames', []));
 });
+
+test('a phone question refuses an answer that is not a number', function () {
+    $question = $this->eventType->questions()->create([
+        'type' => QuestionType::Phone,
+        'label' => 'Best number to reach you',
+        'is_required' => true,
+        'position' => 0,
+    ]);
+
+    $startsAt = CarbonImmutable::parse('2026-09-02 10:00:00', 'UTC');
+
+    $this->post(route('book.store', ['page' => 'dana', 'eventType' => 'intro']), [
+        'starts_at' => $startsAt->toIso8601String(),
+        'timezone' => 'America/Chicago',
+        'name' => 'Sam Rivera',
+        'email' => 'sam@example.com',
+        'answers' => [$question->id => 'call me whenever'],
+    ])->assertSessionHasErrors("answers.{$question->id}");
+
+    expect(Booking::query()->where('email', 'sam@example.com')->exists())->toBeFalse();
+});
+
+test('a phone question accepts the ways people write numbers', function () {
+    $question = $this->eventType->questions()->create([
+        'type' => QuestionType::Phone,
+        'label' => 'Best number to reach you',
+        'is_required' => true,
+        'position' => 0,
+    ]);
+
+    $startsAt = CarbonImmutable::parse('2026-09-02 10:00:00', 'UTC');
+
+    $this->post(route('book.store', ['page' => 'dana', 'eventType' => 'intro']), [
+        'starts_at' => $startsAt->toIso8601String(),
+        'timezone' => 'America/Chicago',
+        'name' => 'Sam Rivera',
+        'email' => 'sam@example.com',
+        'answers' => [$question->id => '+1 (346) 239-9213'],
+    ])->assertSessionHasNoErrors();
+
+    expect(Booking::latest('id')->first()->answers()->sole()->answer)
+        ->toBe('+1 (346) 239-9213');
+});

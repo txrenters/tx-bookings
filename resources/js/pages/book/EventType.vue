@@ -726,6 +726,21 @@ const submit = () => {
                                 <Input
                                     v-else
                                     :id="`question-${question.id}`"
+                                    :type="
+                                        question.type === 'phone'
+                                            ? 'tel'
+                                            : 'text'
+                                    "
+                                    :inputmode="
+                                        question.type === 'phone'
+                                            ? 'tel'
+                                            : undefined
+                                    "
+                                    :autocomplete="
+                                        question.type === 'phone'
+                                            ? 'tel'
+                                            : undefined
+                                    "
                                     :model-value="singleAnswer(question.id)"
                                     @update:model-value="
                                         (value) =>

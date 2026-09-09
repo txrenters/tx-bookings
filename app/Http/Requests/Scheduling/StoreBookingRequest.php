@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Scheduling;
 
+use App\Enums\QuestionType;
 use App\Models\EventType;
 use App\Services\Scheduling\BookingPageResolver;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -82,7 +83,28 @@ class StoreBookingRequest extends FormRequest
                         continue;
                     }
 
-                    if (blank($answer) || ! $question->type->isConstrained()) {
+                    if (blank($answer)) {
+                        continue;
+                    }
+
+                    /*
+                     * A phone question asks for a number, so a sentence is not
+                     * an answer to it. Deliberately loose about SHAPE -- digits,
+                     * spaces, + ( ) - and at least seven digits -- because
+                     * numbers are written differently around the world and this
+                     * is a booking form, not a carrier.
+                     */
+                    if ($question->type === QuestionType::Phone) {
+                        $digits = preg_replace('/\D/', '', (string) $answer);
+
+                        if (mb_strlen((string) $digits) < 7 || preg_match('/[^0-9+()\s.\-]/', (string) $answer)) {
+                            $validator->errors()->add("answers.{$question->id}", 'Enter a phone number.');
+                        }
+
+                        continue;
+                    }
+
+                    if (! $question->type->isConstrained()) {
                         continue;
                     }
 
