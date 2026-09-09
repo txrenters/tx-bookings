@@ -357,3 +357,40 @@ test('the calendar settings tab lists connected calendars', function () {
             ->where('accounts.0.calendars.0.name', 'Primary')
             ->where('accounts.0.calendars.0.checksConflicts', true));
 });
+
+test('an end time that is not after its start is refused, and says so', function () {
+    $schedule = AvailabilitySchedule::factory()->for($this->user)->create();
+
+    $this->actingAs($this->user)
+        ->patch(route('availability.update', [
+            'current_team' => $this->team->slug,
+            'availability' => $schedule->id,
+        ]), [
+            'name' => 'Working hours',
+            'timezone' => 'UTC',
+            'rules' => [
+                ['day_of_week' => 1, 'starts_at' => '09:00', 'ends_at' => '09:00'],
+            ],
+        ])
+        // The message hangs off ends_at, which the page renders beside the
+        // block now: it used to bounce the save with nothing on screen.
+        ->assertSessionHasErrors('rules.0.ends_at');
+});
+
+test('overlapping blocks on the same day are refused', function () {
+    $schedule = AvailabilitySchedule::factory()->for($this->user)->create();
+
+    $this->actingAs($this->user)
+        ->patch(route('availability.update', [
+            'current_team' => $this->team->slug,
+            'availability' => $schedule->id,
+        ]), [
+            'name' => 'Working hours',
+            'timezone' => 'UTC',
+            'rules' => [
+                ['day_of_week' => 1, 'starts_at' => '09:00', 'ends_at' => '12:00'],
+                ['day_of_week' => 1, 'starts_at' => '11:00', 'ends_at' => '15:00'],
+            ],
+        ])
+        ->assertSessionHasErrors('rules.0.starts_at');
+});

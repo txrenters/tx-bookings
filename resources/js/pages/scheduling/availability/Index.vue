@@ -190,6 +190,16 @@ const addOverride = () => {
     });
 };
 
+/**
+ * Every message the server sent back, whether or not the field it belongs to
+ * is rendered. An end time before its start used to bounce the save with the
+ * error attached to a field nothing displayed, so pressing Save appeared to
+ * do nothing at all.
+ */
+const errorMessages = computed(() =>
+    Object.values(form.value.errors as Record<string, string>).filter(Boolean),
+);
+
 const errorFor = (key: string) =>
     (form.value.errors as Record<string, string>)[key];
 
@@ -434,6 +444,22 @@ setLayoutProps({
             </div>
 
             <form v-if="!isEmpty" class="p-6" @submit.prevent="submit">
+                <div
+                    v-if="errorMessages.length"
+                    class="mb-6 rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm"
+                    role="alert"
+                    data-test="availability-errors"
+                >
+                    <p class="font-medium">This schedule was not saved.</p>
+                    <ul
+                        class="mt-1 list-disc space-y-0.5 pl-4 text-muted-foreground"
+                    >
+                        <li v-for="message in errorMessages" :key="message">
+                            {{ message }}
+                        </li>
+                    </ul>
+                </div>
+
                 <div class="grid gap-8 lg:grid-cols-2">
                     <!-- Weekly hours -->
                     <section>
@@ -505,6 +531,9 @@ setLayoutProps({
                                             :message="
                                                 errorFor(
                                                     `rules.${form.rules.indexOf(rule)}.starts_at`,
+                                                ) ??
+                                                errorFor(
+                                                    `rules.${form.rules.indexOf(rule)}.ends_at`,
                                                 )
                                             "
                                         />
