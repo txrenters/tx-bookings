@@ -1,17 +1,44 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
-import { KeyRound, Search, ShieldCheck, UserRound } from '@lucide/vue';
+import {
+    CalendarCheck,
+    CalendarOff,
+    CalendarX,
+    ChevronDown,
+    ExternalLink,
+    KeyRound,
+    MoreHorizontal,
+    Search,
+    ShieldCheck,
+    Trash2,
+    UserRound,
+} from '@lucide/vue';
 import { ref, watch } from 'vue';
+import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import PageHeader from '@/components/PageHeader.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { index as usersIndex, passwordReset } from '@/routes/users';
+import {
+    destroy as destroyUser,
+    index as usersIndex,
+    passwordReset,
+    role as updateRole,
+} from '@/routes/users';
 
 type Organization = {
     id: number;
     name: string;
     isPersonal: boolean;
+    role: string;
     roleLabel: string;
 };
 
@@ -23,6 +50,9 @@ type DirectoryUser = {
     isSuperAdmin: boolean;
     isVerified: boolean;
     joinedAt: string | null;
+    bookingUrl: string | null;
+    groups: string[];
+    calendar: { state: string; label: string; detail: string | null };
     organizations: Organization[];
 };
 
@@ -32,6 +62,7 @@ const props = defineProps<{
     page: number;
     lastPage: number;
     total: number;
+    roles: Array<{ value: string; label: string }>;
 }>();
 
 const searchTerm = ref(props.search);
@@ -40,11 +71,7 @@ const reload = (data: Record<string, string | number>) => {
     router.get(
         usersIndex().url,
         { search: searchTerm.value, ...data },
-        {
-            preserveState: true,
-            preserveScroll: true,
-            replace: true,
-        },
+        { preserveState: true, preserveScroll: true, replace: true },
     );
 };
 
@@ -66,6 +93,46 @@ const sendPasswordReset = (user: DirectoryUser) => {
     );
 };
 
+const changeRole = (
+    user: DirectoryUser,
+    organization: Organization,
+    role: string,
+) => {
+    router.patch(
+        updateRole(user.id).url,
+        { team_id: organization.id, role },
+        { preserveScroll: true, preserveState: true },
+    );
+};
+
+/** Deleting takes the account's bookings and availability with it. */
+const deleting = ref<DirectoryUser | null>(null);
+
+const confirmDelete = () => {
+    if (!deleting.value) {
+        return;
+    }
+
+    router.delete(destroyUser(deleting.value.id).url, {
+        preserveScroll: true,
+        onFinish: () => (deleting.value = null),
+    });
+};
+
+const calendarIcon = (state: string) =>
+    state === 'synced'
+        ? CalendarCheck
+        : state === 'error'
+          ? CalendarX
+          : CalendarOff;
+
+const calendarClass = (state: string) =>
+    state === 'synced'
+        ? 'text-success'
+        : state === 'error'
+          ? 'text-destructive'
+          : 'text-muted-foreground';
+
 defineOptions({
     layout: {
         breadcrumbs: [{ title: 'Users', href: usersIndex() }],
@@ -79,92 +146,226 @@ defineOptions({
     <div class="flex h-full flex-1 flex-col gap-6 p-4 sm:p-6">
         <PageHeader
             title="Users"
-            description="Every account in the installation, the organizations they belong to, and their access."
-        />
+            description="Every account in the installation, what they can reach, and whether their calendar is syncing."
+        >
+            <template #actions>
+                <p class="text-sm text-muted-foreground">
+                    {{ total }} {{ total === 1 ? 'account' : 'accounts' }}
+                </p>
+            </template>
+        </PageHeader>
 
-        <div class="flex flex-wrap items-center gap-2">
-            <div class="relative min-w-64 flex-1">
-                <Search
-                    class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-                    aria-hidden="true"
-                />
-                <Input
-                    v-model="searchTerm"
-                    class="pl-9"
-                    placeholder="Search by name or email"
-                    aria-label="Search users"
-                    data-test="user-search"
-                />
-            </div>
-            <p class="text-sm text-muted-foreground">
-                {{ total }} {{ total === 1 ? 'account' : 'accounts' }}
-            </p>
+        <div class="relative max-w-md">
+            <Search
+                class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden="true"
+            />
+            <Input
+                v-model="searchTerm"
+                class="pl-9"
+                placeholder="Search by name or email"
+                aria-label="Search users"
+                data-test="user-search"
+            />
         </div>
 
-        <ul
+        <div
             v-if="users.length"
-            class="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card"
+            class="overflow-x-auto rounded-xl border border-border bg-card"
         >
-            <li
-                v-for="user in users"
-                :key="user.id"
-                data-test="user-row"
-                class="flex flex-wrap items-center gap-4 p-4"
-            >
-                <span
-                    class="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold"
-                    aria-hidden="true"
-                >
-                    {{ user.initials }}
-                </span>
-
-                <span class="min-w-0 flex-1">
-                    <span class="flex flex-wrap items-center gap-2">
-                        <span class="font-medium">{{ user.name }}</span>
-                        <Badge
-                            v-if="user.isSuperAdmin"
-                            variant="secondary"
-                            class="gap-1"
-                        >
-                            <ShieldCheck class="size-3" /> Super admin
-                        </Badge>
-                        <Badge v-if="!user.isVerified" variant="outline">
-                            Unverified
-                        </Badge>
-                    </span>
-                    <span class="block text-sm text-muted-foreground">
-                        {{ user.email }}
-                    </span>
-                </span>
-
-                <span class="flex min-w-0 flex-1 flex-wrap gap-1.5">
-                    <Badge
-                        v-for="organization in user.organizations"
-                        :key="organization.id"
-                        variant="outline"
-                        class="font-normal"
+            <table class="w-full text-sm">
+                <thead class="border-b border-border text-muted-foreground">
+                    <tr>
+                        <th class="p-4 text-left font-medium">Name</th>
+                        <th class="p-4 text-left font-medium">Organizations</th>
+                        <th class="p-4 text-left font-medium">Booking page</th>
+                        <th class="p-4 text-left font-medium">Teams</th>
+                        <th class="p-4 text-left font-medium">Calendar</th>
+                        <th class="p-4 text-right font-medium">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-border">
+                    <tr
+                        v-for="user in users"
+                        :key="user.id"
+                        data-test="user-row"
                     >
-                        {{ organization.name }} &middot;
-                        {{ organization.roleLabel }}
-                    </Badge>
-                    <span
-                        v-if="!user.organizations.length"
-                        class="text-sm text-muted-foreground"
-                    >
-                        No organizations
-                    </span>
-                </span>
+                        <td class="p-4">
+                            <div class="flex items-center gap-3">
+                                <span
+                                    class="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold"
+                                    aria-hidden="true"
+                                >
+                                    {{ user.initials }}
+                                </span>
+                                <div class="min-w-0">
+                                    <div
+                                        class="flex flex-wrap items-center gap-2"
+                                    >
+                                        <span class="font-medium">
+                                            {{ user.name }}
+                                        </span>
+                                        <Badge
+                                            v-if="user.isSuperAdmin"
+                                            variant="secondary"
+                                            class="gap-1"
+                                        >
+                                            <ShieldCheck class="size-3" />
+                                            Super admin
+                                        </Badge>
+                                        <Badge
+                                            v-if="!user.isVerified"
+                                            variant="outline"
+                                        >
+                                            Unverified
+                                        </Badge>
+                                    </div>
+                                    <span class="text-muted-foreground">
+                                        {{ user.email }}
+                                    </span>
+                                </div>
+                            </div>
+                        </td>
 
-                <Button
-                    variant="outline"
-                    size="sm"
-                    :data-test="`reset-password-${user.id}`"
-                    @click="sendPasswordReset(user)"
-                >
-                    <KeyRound class="size-3.5" /> Send reset link
-                </Button>
-            </li>
-        </ul>
+                        <td class="p-4">
+                            <div class="flex flex-col gap-1">
+                                <DropdownMenu
+                                    v-for="organization in user.organizations"
+                                    :key="organization.id"
+                                >
+                                    <DropdownMenuTrigger as-child>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            class="h-auto justify-start gap-1 px-2 py-1"
+                                            :data-test="`role-${user.id}-${organization.id}`"
+                                        >
+                                            <span class="truncate">
+                                                {{ organization.name }}
+                                            </span>
+                                            <span class="text-muted-foreground">
+                                                · {{ organization.roleLabel }}
+                                            </span>
+                                            <ChevronDown
+                                                class="size-3 opacity-50"
+                                            />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="start">
+                                        <DropdownMenuLabel
+                                            class="text-muted-foreground"
+                                        >
+                                            Role in {{ organization.name }}
+                                        </DropdownMenuLabel>
+                                        <DropdownMenuItem
+                                            v-for="option in roles"
+                                            :key="option.value"
+                                            :data-test="`set-role-${option.value}`"
+                                            @click="
+                                                changeRole(
+                                                    user,
+                                                    organization,
+                                                    option.value,
+                                                )
+                                            "
+                                        >
+                                            {{ option.label }}
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                                <span
+                                    v-if="!user.organizations.length"
+                                    class="text-muted-foreground"
+                                >
+                                    None
+                                </span>
+                            </div>
+                        </td>
+
+                        <td class="p-4">
+                            <a
+                                v-if="user.bookingUrl"
+                                :href="user.bookingUrl"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="inline-flex items-center gap-1 text-primary hover:underline"
+                            >
+                                Open
+                                <ExternalLink class="size-3" />
+                            </a>
+                            <span v-else class="text-muted-foreground">—</span>
+                        </td>
+
+                        <td class="p-4">
+                            <span
+                                v-if="user.groups.length"
+                                class="flex flex-wrap gap-1"
+                            >
+                                <Badge
+                                    v-for="group in user.groups"
+                                    :key="group"
+                                    variant="outline"
+                                    class="font-normal"
+                                >
+                                    {{ group }}
+                                </Badge>
+                            </span>
+                            <span v-else class="text-muted-foreground">
+                                None
+                            </span>
+                        </td>
+
+                        <td class="p-4">
+                            <span
+                                class="flex items-center gap-1.5"
+                                :class="calendarClass(user.calendar.state)"
+                                :title="user.calendar.detail ?? undefined"
+                            >
+                                <component
+                                    :is="calendarIcon(user.calendar.state)"
+                                    class="size-4"
+                                    aria-hidden="true"
+                                />
+                                {{ user.calendar.label }}
+                            </span>
+                        </td>
+
+                        <td class="p-4 text-right">
+                            <DropdownMenu>
+                                <DropdownMenuTrigger as-child>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        :data-test="`actions-${user.id}`"
+                                        aria-label="Actions"
+                                    >
+                                        <MoreHorizontal class="size-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem
+                                        :data-test="`reset-password-${user.id}`"
+                                        @click="sendPasswordReset(user)"
+                                    >
+                                        <KeyRound class="size-3.5" />
+                                        Send reset link
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                        class="text-destructive"
+                                        :data-test="`delete-user-${user.id}`"
+                                        @click="deleting = user"
+                                    >
+                                        <Trash2 class="size-3.5" />
+                                        Delete account
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
 
         <div
             v-else
@@ -195,5 +396,14 @@ defineOptions({
                 Next
             </Button>
         </div>
+
+        <ConfirmDialog
+            :open="deleting !== null"
+            title="Delete this account?"
+            :description="`${deleting?.name} (${deleting?.email}) will be removed, along with their event types, availability and the bookings they host. This cannot be undone.`"
+            confirm-label="Delete account"
+            @cancel="deleting = null"
+            @confirm="confirmDelete"
+        />
     </div>
 </template>

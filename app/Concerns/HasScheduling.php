@@ -6,6 +6,7 @@ use App\Models\AvailabilitySchedule;
 use App\Models\Booking;
 use App\Models\CalendarAccount;
 use App\Models\EventType;
+use App\Models\Group;
 use App\Models\LeavePeriod;
 use App\Models\MeetingLimit;
 use App\Models\Team;
@@ -87,6 +88,18 @@ trait HasScheduling
         return $this->leavePeriods()
             ->covering($moment ?? CarbonImmutable::now())
             ->exists();
+    }
+
+    /**
+     * Get the teams (the Group model) the user hosts with.
+     *
+     * @return BelongsToMany<Group, $this>
+     */
+    public function groups(): BelongsToMany
+    {
+        return $this->belongsToMany(Group::class, 'group_members')
+            ->withPivot(['priority'])
+            ->withTimestamps();
     }
 
     /**

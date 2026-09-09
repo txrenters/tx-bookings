@@ -37,6 +37,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('users', [UserDirectoryController::class, 'index'])->name('users.index');
     Route::post('users/{user}/password-reset', [UserDirectoryController::class, 'sendPasswordReset'])
         ->name('users.password-reset');
+    Route::patch('users/{user}/role', [UserDirectoryController::class, 'updateRole'])->name('users.role');
+    Route::delete('users/{user}', [UserDirectoryController::class, 'destroy'])->name('users.destroy');
 
     Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');

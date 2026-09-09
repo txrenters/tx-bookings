@@ -33,7 +33,9 @@ test('a super admin sees every account and the organizations it belongs to', fun
             // The personal organization the factory creates, plus the one above.
             ->has('users.0.organizations', 2)
             ->where('users.0.organizations.1.name', 'TexasRenters.com')
-            ->where('users.0.organizations.1.roleLabel', 'Member'));
+            ->where('users.0.organizations.1.roleLabel', 'Member')
+            ->where('users.0.calendar.state', 'none')
+            ->has('users.0.groups', 0));
 });
 
 test('an ordinary user cannot open the directory', function () {
@@ -64,4 +66,81 @@ test('an ordinary user cannot send a password reset for someone else', function 
         ->assertForbidden();
 
     Notification::assertNothingSent();
+});
+
+test('a super admin changes the role a user holds in an organization', function () {
+    $team = Team::factory()->create();
+    $member = User::factory()->create();
+
+    $team->members()->attach($member, ['role' => TeamRole::Member->value]);
+
+    $this->actingAs(superAdminUser())
+        ->patch(route('users.role', ['user' => $member->id]), [
+            'team_id' => $team->id,
+            'role' => TeamRole::Admin->value,
+        ])
+        ->assertRedirect();
+
+    expect($member->fresh()->teamRole($team))->toBe(TeamRole::Admin);
+});
+
+test('handing ownership from the directory demotes the previous owner', function () {
+    $team = Team::factory()->create();
+    $owner = User::factory()->create();
+    $successor = User::factory()->create();
+
+    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($successor, ['role' => TeamRole::Member->value]);
+
+    $this->actingAs(superAdminUser())
+        ->patch(route('users.role', ['user' => $successor->id]), [
+            'team_id' => $team->id,
+            'role' => TeamRole::Owner->value,
+        ])
+        ->assertRedirect();
+
+    expect($successor->fresh()->teamRole($team))->toBe(TeamRole::Owner)
+        ->and($owner->fresh()->teamRole($team))->toBe(TeamRole::Admin);
+});
+
+test('a super admin deletes an account', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs(superAdminUser())
+        ->delete(route('users.destroy', ['user' => $user->id]))
+        ->assertRedirect();
+
+    $this->assertDatabaseMissing('users', ['id' => $user->id]);
+});
+
+test('a super admin cannot delete their own account here', function () {
+    $admin = superAdminUser();
+
+    $this->actingAs($admin)
+        ->delete(route('users.destroy', ['user' => $admin->id]))
+        ->assertSessionHasErrors('user');
+
+    $this->assertDatabaseHas('users', ['id' => $admin->id]);
+});
+
+test('an ordinary user cannot change roles or delete accounts', function () {
+    $team = Team::factory()->create();
+    $target = User::factory()->create();
+
+    $team->members()->attach($target, ['role' => TeamRole::Member->value]);
+
+    $actor = User::factory()->create();
+
+    $this->actingAs($actor)
+        ->patch(route('users.role', ['user' => $target->id]), [
+            'team_id' => $team->id,
+            'role' => TeamRole::Admin->value,
+        ])
+        ->assertForbidden();
+
+    $this->actingAs($actor)
+        ->delete(route('users.destroy', ['user' => $target->id]))
+        ->assertForbidden();
+
+    expect($target->fresh()->teamRole($team))->toBe(TeamRole::Member);
 });
