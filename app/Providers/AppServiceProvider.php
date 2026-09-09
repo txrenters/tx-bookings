@@ -33,6 +33,7 @@ class AppServiceProvider extends ServiceProvider
         $this->registerMicrosoftGraphMailer();
         $this->grantSuperAdminsEveryAbility();
         $this->restrictLogViewerToSuperAdmins();
+        $this->restrictUserDirectoryToSuperAdmins();
     }
 
     /**
@@ -106,6 +107,19 @@ class AppServiceProvider extends ServiceProvider
     protected function restrictLogViewerToSuperAdmins(): void
     {
         Gate::define('viewLogViewer', fn (User $user): bool => $user->isSuperAdmin());
+    }
+
+    /**
+     * Keep the user directory to super admins.
+     *
+     * It lists every account in the installation and can send any of them a
+     * password reset, so it is not an organization level permission: only an
+     * operator of the whole system sees it. Gate::before already lets super
+     * admins through, so this exists to DENY everyone else.
+     */
+    protected function restrictUserDirectoryToSuperAdmins(): void
+    {
+        Gate::define('manageUsers', fn (User $user): bool => $user->isSuperAdmin());
     }
 
     /**

@@ -10,6 +10,7 @@ import {
     ScrollText,
     Settings,
     Users,
+    UsersRound,
 } from '@lucide/vue';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
@@ -34,6 +35,7 @@ import { index as logsIndex } from '@/routes/log-viewer';
 import { index as meetingsIndex } from '@/routes/meetings';
 import { edit as profileSettings } from '@/routes/profile';
 import { index as schedulingIndex } from '@/routes/scheduling';
+import { index as usersIndex } from '@/routes/users';
 import type { NavItem } from '@/types';
 
 const page = usePage();
@@ -106,6 +108,7 @@ const adminNavItems = computed<NavItem[]>(() =>
                   // in a tab of its own so the app stays where it was.
                   external: true,
               },
+              { title: 'Users', href: usersIndex(), icon: UsersRound },
           ]
         : [],
 );

@@ -3,6 +3,7 @@
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Settings\UserDirectoryController;
 use App\Http\Controllers\Teams\TeamInvitationController;
 use App\Http\Middleware\EnsureTeamMembership;
 use Illuminate\Support\Facades\Route;
@@ -28,6 +29,14 @@ Route::get('invitations/{invitation}/join', [TeamInvitationController::class, 'j
 Route::middleware(['auth'])->group(function () {
     Route::post('invitations/{invitation}/accept', [TeamInvitationController::class, 'accept'])->name('invitations.accept');
     Route::delete('invitations/{invitation}', [TeamInvitationController::class, 'decline'])->name('invitations.decline');
+
+    /*
+     * Operator tools, kept out of the organization prefix: they span every
+     * organization, and the manageUsers gate is what guards them.
+     */
+    Route::get('users', [UserDirectoryController::class, 'index'])->name('users.index');
+    Route::post('users/{user}/password-reset', [UserDirectoryController::class, 'sendPasswordReset'])
+        ->name('users.password-reset');
 
     Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
