@@ -17,7 +17,7 @@ function activityTeam(): array
     $user = User::factory()->create();
     $team = Team::factory()->create();
 
-    $team->members()->attach($user, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($user, ['role' => TeamRole::Admin->value]);
     $user->forceFill(['current_team_id' => $team->id])->save();
 
     return [$user, $team];

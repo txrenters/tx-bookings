@@ -78,7 +78,7 @@ test('a member only sees bookings they host', function () {
     $team = Team::factory()->create();
     $member = User::factory()->create();
 
-    $team->members()->attach($this->host, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($this->host, ['role' => TeamRole::Admin->value]);
     $team->members()->attach($member, ['role' => TeamRole::Member->value]);
     $member->switchTeam($team);
 

@@ -38,7 +38,7 @@ class TeamPolicy
     {
         return $user->teams()
             ->where('teams.is_personal', false)
-            ->wherePivotIn('role', [TeamRole::Owner->value, TeamRole::Admin->value])
+            ->wherePivot('role', TeamRole::Admin->value)
             ->exists();
     }
 
@@ -57,7 +57,18 @@ class TeamPolicy
     {
         return ! $team->is_personal
             && $user->belongsToTeam($team)
-            && ! $user->ownsTeam($team);
+            // An organization has to keep an administrator, so the last one
+            // promotes someone else before leaving.
+            && ! $this->isLastAdmin($user, $team);
+    }
+
+    /**
+     * Determine whether the user is the only administrator left.
+     */
+    public function isLastAdmin(User $user, Team $team): bool
+    {
+        return $user->teamRole($team) === TeamRole::Admin
+            && $team->memberships()->where('role', TeamRole::Admin)->count() === 1;
     }
 
     /**

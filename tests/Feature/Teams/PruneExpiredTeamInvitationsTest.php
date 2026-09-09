@@ -11,7 +11,7 @@ test('expired invitations are deleted by the scheduled cleanup', function () {
     $owner = User::factory()->create();
     $team = Team::factory()->create();
 
-    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($owner, ['role' => TeamRole::Admin->value]);
 
     $expiredInvitation = TeamInvitation::factory()->expired()->create([
         'team_id' => $team->id,

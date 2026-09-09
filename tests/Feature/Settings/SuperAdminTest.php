@@ -28,7 +28,7 @@ function foreignOrganization(): Team
     $owner = User::factory()->create();
     $team = Team::factory()->create();
 
-    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($owner, ['role' => TeamRole::Admin->value]);
 
     return $team;
 }

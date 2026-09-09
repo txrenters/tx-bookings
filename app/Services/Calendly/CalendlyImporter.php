@@ -494,7 +494,8 @@ class CalendlyImporter
     protected function roleFor(string $role): TeamRole
     {
         return match ($role) {
-            'owner' => TeamRole::Owner,
+            // Calendly's owner is an administrator here; nothing sits above it.
+            'owner' => TeamRole::Admin,
             'admin' => TeamRole::Admin,
             default => TeamRole::Member,
         };

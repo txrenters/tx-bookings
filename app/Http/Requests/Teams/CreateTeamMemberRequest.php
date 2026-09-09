@@ -21,7 +21,7 @@ class CreateTeamMemberRequest extends FormRequest
     {
         return [
             ...$this->profileRules(),
-            'role' => ['required', 'string', Rule::enum(TeamRole::class)->except(TeamRole::Owner)],
+            'role' => ['required', 'string', Rule::enum(TeamRole::class)],
         ];
     }
 

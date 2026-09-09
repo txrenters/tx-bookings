@@ -23,7 +23,7 @@ function organizationWithMembers(int $count = 3): array
     $owner = User::factory()->create();
     $team = Team::factory()->create();
 
-    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($owner, ['role' => TeamRole::Admin->value]);
     $owner->forceFill(['current_team_id' => $team->id])->save();
 
     $members = [];

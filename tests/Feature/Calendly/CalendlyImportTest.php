@@ -30,7 +30,7 @@ function calendlyTarget(): array
     $user = User::factory()->create(['email' => 'owner@texasrenters.com']);
     $team = Team::factory()->create();
 
-    $team->members()->attach($user, ['role' => 'owner']);
+    $team->members()->attach($user, ['role' => 'admin']);
 
     return [$user, $team];
 }

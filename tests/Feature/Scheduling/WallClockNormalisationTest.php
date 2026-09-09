@@ -76,7 +76,7 @@ test('a schedule summary renders hours written in either shape', function () {
 test('the scheduling page survives hours that arrived from an import', function () {
     $user = User::factory()->create(['email_verified_at' => now()]);
     $team = Team::factory()->create();
-    $team->members()->attach($user, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($user, ['role' => TeamRole::Admin->value]);
     $user->forceFill(['current_team_id' => $team->id])->save();
 
     $schedule = AvailabilitySchedule::factory()->for($user)->create();

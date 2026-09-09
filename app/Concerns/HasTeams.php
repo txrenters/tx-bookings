@@ -11,7 +11,6 @@ use App\Models\Team;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\URL;
 
@@ -27,23 +26,6 @@ trait HasTeams
         return $this->belongsToMany(Team::class, 'team_members', 'user_id', 'team_id')
             ->withPivot(['role'])
             ->withTimestamps();
-    }
-
-    /**
-     * Get all of the teams the user owns.
-     *
-     * @return HasManyThrough<Team, Membership, $this>
-     */
-    public function ownedTeams(): HasManyThrough
-    {
-        return $this->hasManyThrough(
-            Team::class,
-            Membership::class,
-            'user_id',
-            'id',
-            'id',
-            'team_id',
-        )->where('team_members.role', TeamRole::Owner->value);
     }
 
     /**
@@ -108,14 +90,6 @@ trait HasTeams
     public function isCurrentTeam(Team $team): bool
     {
         return $this->current_team_id === $team->id;
-    }
-
-    /**
-     * Determine if the user is the owner of the given team.
-     */
-    public function ownsTeam(Team $team): bool
-    {
-        return $this->teamRole($team) === TeamRole::Owner;
     }
 
     /**

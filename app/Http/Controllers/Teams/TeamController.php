@@ -54,6 +54,7 @@ class TeamController extends Controller
     public function edit(Request $request, Team $team): Response
     {
         $user = $request->user();
+        $adminCount = $team->memberships()->where('role', TeamRole::Admin)->count();
 
         return Inertia::render('teams/Edit', [
             'team' => [
@@ -69,7 +70,7 @@ class TeamController extends Controller
             // Super admins operate across organizations rather than belonging
             // to one, so they stay off the roster people manage here. They keep
             // their place in the scheduling pickers, where they may host.
-            'members' => $team->members()->where('users.is_super_admin', false)->get()->map(function (User $member) {
+            'members' => $team->members()->where('users.is_super_admin', false)->get()->map(function (User $member) use ($adminCount) {
                 /** @var Membership $membership */
                 $membership = $member->getRelation('pivot');
 
@@ -80,6 +81,10 @@ class TeamController extends Controller
                     'avatar' => $member->avatar ?? null,
                     'role' => $membership->role->value,
                     'role_label' => $membership->role->label(),
+                    // The screen hides demote and remove for this member: an
+                    // organization has to keep an administrator, and the
+                    // controller refuses it anyway.
+                    'isLastAdmin' => $membership->role === TeamRole::Admin && $adminCount === 1,
                 ];
             }),
             'invitations' => $team->invitations()
@@ -94,14 +99,6 @@ class TeamController extends Controller
                 ]),
             'permissions' => $user->toTeamPermissions($team),
             'availableRoles' => TeamRole::assignable(),
-            // Ownership can be handed to an existing member, but never handed
-            // out with an invitation, so the two lists differ.
-            'memberRoles' => $user->can('updateMember', $team)
-                ? array_map(
-                    fn (TeamRole $role) => ['value' => $role->value, 'label' => $role->label()],
-                    TeamRole::cases(),
-                )
-                : TeamRole::assignable(),
             'timezones' => timezone_identifiers_list(),
         ]);
     }

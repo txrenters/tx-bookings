@@ -9,7 +9,7 @@ test('team member roles can be updated by owners', function () {
     $member = User::factory()->create();
     $team = Team::factory()->create();
 
-    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($owner, ['role' => TeamRole::Admin->value]);
     $team->members()->attach($member, ['role' => TeamRole::Member->value]);
 
     $response = $this
@@ -23,14 +23,14 @@ test('team member roles can be updated by owners', function () {
     expect($team->members()->where('user_id', $member->id)->first()->pivot->role->value)->toEqual(TeamRole::Admin->value);
 });
 
-test('team member roles cannot be updated by non owners', function () {
+test('team member roles cannot be updated by members', function () {
     $owner = User::factory()->create();
     $admin = User::factory()->create();
     $member = User::factory()->create();
     $team = Team::factory()->create();
 
-    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
-    $team->members()->attach($admin, ['role' => TeamRole::Admin->value]);
+    $team->members()->attach($owner, ['role' => TeamRole::Admin->value]);
+    $team->members()->attach($admin, ['role' => TeamRole::Member->value]);
     $team->members()->attach($member, ['role' => TeamRole::Member->value]);
 
     $response = $this
@@ -47,7 +47,7 @@ test('team members can be removed by owners', function () {
     $member = User::factory()->create();
     $team = Team::factory()->create();
 
-    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($owner, ['role' => TeamRole::Admin->value]);
     $team->members()->attach($member, ['role' => TeamRole::Member->value]);
 
     $response = $this
@@ -59,14 +59,14 @@ test('team members can be removed by owners', function () {
     expect($member->fresh()->belongsToTeam($team))->toBeFalse();
 });
 
-test('team members cannot be removed by non owners', function () {
+test('team members cannot be removed by members', function () {
     $owner = User::factory()->create();
     $admin = User::factory()->create();
     $member = User::factory()->create();
     $team = Team::factory()->create();
 
-    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
-    $team->members()->attach($admin, ['role' => TeamRole::Admin->value]);
+    $team->members()->attach($owner, ['role' => TeamRole::Admin->value]);
+    $team->members()->attach($admin, ['role' => TeamRole::Member->value]);
     $team->members()->attach($member, ['role' => TeamRole::Member->value]);
 
     $response = $this
@@ -76,11 +76,11 @@ test('team members cannot be removed by non owners', function () {
     $response->assertForbidden();
 });
 
-test('team owner cannot be removed', function () {
+test('the last administrator cannot be removed', function () {
     $owner = User::factory()->create();
     $team = Team::factory()->create();
 
-    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($owner, ['role' => TeamRole::Admin->value]);
 
     $response = $this
         ->actingAs($owner)
@@ -91,24 +91,23 @@ test('team owner cannot be removed', function () {
     expect($owner->fresh()->belongsToTeam($team))->toBeTrue();
 });
 
-test('an organization never ends up with two owners', function () {
-    $owner = User::factory()->create();
+test('the last administrator cannot be demoted', function () {
+    $admin = User::factory()->create();
     $member = User::factory()->create();
     $team = Team::factory()->create();
 
-    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($admin, ['role' => TeamRole::Admin->value]);
     $team->members()->attach($member, ['role' => TeamRole::Member->value]);
 
-    // Naming an owner used to be rejected outright; it is now a transfer, so
-    // what has to hold is that only one owner survives it.
-    $this->actingAs($owner)
-        ->patch(route('teams.members.update', [$team, $member]), [
-            'role' => TeamRole::Owner->value,
+    // Organizations used to be anchored by an owner who could not be removed.
+    // Flattened onto admins, what anchors one is that the last admin stays.
+    $this->actingAs($admin)
+        ->patch(route('teams.members.update', [$team, $admin]), [
+            'role' => TeamRole::Member->value,
         ])
-        ->assertSessionHasNoErrors();
+        ->assertForbidden();
 
-    expect($team->memberships()->where('role', TeamRole::Owner)->count())->toBe(1)
-        ->and($team->memberships()->where('role', TeamRole::Owner)->first()->user_id)->toBe($member->id);
+    expect($admin->fresh()->teamRole($team))->toBe(TeamRole::Admin);
 });
 
 test('removed member current team is set to personal team', function () {
@@ -117,7 +116,7 @@ test('removed member current team is set to personal team', function () {
     $personalTeam = $member->personalTeam();
     $team = Team::factory()->create();
 
-    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($owner, ['role' => TeamRole::Admin->value]);
     $team->members()->attach($member, ['role' => TeamRole::Member->value]);
 
     $member->update(['current_team_id' => $team->id]);
@@ -144,7 +143,7 @@ test('a member with no personal organization can be removed', function () {
     $team->members()->attach($member, ['role' => TeamRole::Member->value]);
     $member->forceFill(['current_team_id' => $team->id])->save();
 
-    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($owner, ['role' => TeamRole::Admin->value]);
 
     $this->actingAs($owner)
         ->delete(route('teams.members.destroy', [$team, $member]))
@@ -165,7 +164,7 @@ test('a removed member falls back to another organization they still belong to',
     $other->members()->attach($member, ['role' => TeamRole::Member->value]);
     $member->forceFill(['current_team_id' => $team->id])->save();
 
-    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($owner, ['role' => TeamRole::Admin->value]);
 
     $this->actingAs($owner)
         ->delete(route('teams.members.destroy', [$team, $member]));
@@ -182,7 +181,7 @@ test('a removed member with a personal organization lands on it', function () {
     $team->members()->attach($member, ['role' => TeamRole::Member->value]);
     $member->forceFill(['current_team_id' => $team->id])->save();
 
-    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($owner, ['role' => TeamRole::Admin->value]);
 
     $this->actingAs($owner)
         ->delete(route('teams.members.destroy', [$team, $member]));
@@ -195,7 +194,7 @@ test('a super admin is left off the organizations member roster', function () {
     $owner = User::factory()->create();
     $operator = User::factory()->create(['is_super_admin' => true]);
 
-    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($owner, ['role' => TeamRole::Admin->value]);
     $team->members()->attach($operator, ['role' => TeamRole::Admin->value]);
 
     $this->actingAs($owner)
@@ -206,39 +205,36 @@ test('a super admin is left off the organizations member roster', function () {
             ->where('members.0.email', $owner->email));
 });
 
-test('an owner hands ownership to another member', function () {
-    $owner = User::factory()->create();
+test('an admin promotes a member to admin', function () {
+    $admin = User::factory()->create();
     $successor = User::factory()->create();
     $team = Team::factory()->create();
 
-    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($admin, ['role' => TeamRole::Admin->value]);
     $team->members()->attach($successor, ['role' => TeamRole::Member->value]);
 
-    $this->actingAs($owner)
+    $this->actingAs($admin)
         ->patch(route('teams.members.update', ['team' => $team->slug, 'user' => $successor->id]), [
-            'role' => TeamRole::Owner->value,
+            'role' => TeamRole::Admin->value,
         ])
         ->assertRedirect();
 
-    expect($successor->fresh()->teamRole($team))->toBe(TeamRole::Owner)
-        // Exactly one owner: the previous holder steps down to admin.
-        ->and($owner->fresh()->teamRole($team))->toBe(TeamRole::Admin);
+    // Admins sit alongside each other; an organization can have several.
+    expect($successor->fresh()->teamRole($team))->toBe(TeamRole::Admin)
+        ->and($admin->fresh()->teamRole($team))->toBe(TeamRole::Admin);
 });
 
-test('an admin cannot hand ownership to themselves', function () {
-    $owner = User::factory()->create();
+test('an admin can be removed while another admin remains', function () {
     $admin = User::factory()->create();
+    $second = User::factory()->create();
     $team = Team::factory()->create();
 
-    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
     $team->members()->attach($admin, ['role' => TeamRole::Admin->value]);
+    $team->members()->attach($second, ['role' => TeamRole::Admin->value]);
 
     $this->actingAs($admin)
-        ->patch(route('teams.members.update', ['team' => $team->slug, 'user' => $admin->id]), [
-            'role' => TeamRole::Owner->value,
-        ])
-        ->assertForbidden();
+        ->delete(route('teams.members.destroy', [$team, $second]))
+        ->assertRedirect();
 
-    expect($admin->fresh()->teamRole($team))->toBe(TeamRole::Admin)
-        ->and($owner->fresh()->teamRole($team))->toBe(TeamRole::Owner);
+    expect($second->fresh()->belongsToTeam($team))->toBeFalse();
 });

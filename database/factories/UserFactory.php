@@ -49,7 +49,7 @@ class UserFactory extends Factory
             ]);
 
             $team->members()->attach($user, [
-                'role' => TeamRole::Owner->value,
+                'role' => TeamRole::Admin->value,
             ]);
 
             $user->switchTeam($team);

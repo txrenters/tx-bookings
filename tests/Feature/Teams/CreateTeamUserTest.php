@@ -91,7 +91,7 @@ test('an organization owner cannot create a user directly', function () {
 
     $owner = User::factory()->create();
     $team = Team::factory()->create();
-    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($owner, ['role' => TeamRole::Admin->value]);
 
     $this->actingAs($owner)
         ->post(route('teams.members.store', $team), [
@@ -120,17 +120,18 @@ test('a user cannot be created with an address that already has an account', fun
         ->assertSessionHasErrors('email');
 });
 
-test('a user cannot be created as the organization owner', function () {
+test('a user cannot be created with a role that does not exist', function () {
     Notification::fake();
 
     $superAdmin = User::factory()->create(['is_super_admin' => true]);
     $team = Team::factory()->create();
 
+    // 'owner' was a role until organizations were flattened onto admins.
     $this->actingAs($superAdmin)
         ->post(route('teams.members.store', $team), [
             'name' => 'Usurper',
             'email' => 'usurper@example.com',
-            'role' => TeamRole::Owner->value,
+            'role' => 'owner',
         ])
         ->assertSessionHasErrors('role');
 });

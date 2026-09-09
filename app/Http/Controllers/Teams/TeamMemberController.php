@@ -9,9 +9,9 @@ use App\Http\Requests\Teams\CreateTeamMemberRequest;
 use App\Http\Requests\Teams\UpdateTeamMemberRequest;
 use App\Models\Team;
 use App\Models\User;
+use App\Policies\TeamPolicy;
 use App\Services\Activity\ActivityLogger;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 
@@ -60,38 +60,29 @@ class TeamMemberController extends Controller
 
         $newRole = TeamRole::from($request->validated('role'));
 
-        DB::transaction(function () use ($team, $user, $newRole) {
-            // An organization has exactly one owner, so handing the role over
-            // steps the previous holder down rather than adding a second.
-            if ($newRole === TeamRole::Owner) {
-                $team->memberships()
-                    ->where('role', TeamRole::Owner)
-                    ->where('user_id', '!=', $user->id)
-                    ->update(['role' => TeamRole::Admin]);
-            }
+        $membership = $team->memberships()
+            ->where('user_id', $user->id)
+            ->firstOrFail();
 
-            $team->memberships()
-                ->where('user_id', $user->id)
-                ->firstOrFail()
-                ->update(['role' => $newRole]);
-        });
+        // Demoting the last administrator would leave the organization with
+        // nobody able to run it.
+        abort_if(
+            $newRole !== TeamRole::Admin && app(TeamPolicy::class)->isLastAdmin($user, $team),
+            403,
+            __('The last administrator cannot be demoted.'),
+        );
+
+        $membership->update(['role' => $newRole]);
 
         app(ActivityLogger::class)->record(
             $team,
-            $newRole === TeamRole::Owner ? 'member.ownership_transferred' : 'member.role_changed',
-            $newRole === TeamRole::Owner
-                ? 'Made '.$user->name.' the owner'
-                : 'Changed '.$user->name."'s role to ".$newRole->label(),
+            'member.role_changed',
+            'Changed '.$user->name."'s role to ".$newRole->label(),
             $user,
             ['role' => $newRole->value],
         );
 
-        Inertia::flash('toast', [
-            'type' => 'success',
-            'message' => $newRole === TeamRole::Owner
-                ? __(':name is now the owner.', ['name' => $user->name])
-                : __('Member role updated.'),
-        ]);
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Member role updated.')]);
 
         return to_route('teams.edit', ['team' => $team->slug]);
     }
@@ -103,7 +94,11 @@ class TeamMemberController extends Controller
     {
         Gate::authorize('removeMember', $team);
 
-        abort_if($team->owner()?->is($user), 403, __('The organization owner cannot be removed.'));
+        abort_if(
+            app(TeamPolicy::class)->isLastAdmin($user, $team),
+            403,
+            __('The last administrator cannot be removed.'),
+        );
 
         $team->memberships()
             ->where('user_id', $user->id)

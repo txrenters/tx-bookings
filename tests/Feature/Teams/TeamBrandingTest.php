@@ -16,7 +16,7 @@ function ownedTeam(array $attributes = []): array
     $user = User::factory()->create();
     $team = Team::factory()->create($attributes);
 
-    $team->members()->attach($user, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($user, ['role' => TeamRole::Admin->value]);
 
     return [$user, $team];
 }

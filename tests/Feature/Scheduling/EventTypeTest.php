@@ -167,7 +167,7 @@ test('a round robin stores its host pool in priority order', function () {
     $team = Team::factory()->create();
     $second = User::factory()->create();
 
-    $team->members()->attach($this->user, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($this->user, ['role' => TeamRole::Admin->value]);
     $team->members()->attach($second, ['role' => TeamRole::Member->value]);
     $this->user->switchTeam($team);
 
@@ -259,7 +259,7 @@ test('a member of another team cannot edit an event type', function () {
 
 test('an event type slug resolves within the current team only', function () {
     $otherTeam = Team::factory()->create();
-    $otherTeam->members()->attach($this->user, ['role' => TeamRole::Owner->value]);
+    $otherTeam->members()->attach($this->user, ['role' => TeamRole::Admin->value]);
 
     EventType::factory()->create([
         'team_id' => $otherTeam->id,
@@ -396,7 +396,7 @@ test('a pooled event type whose hosts differ reports varying hours', function ()
     $team = Team::factory()->create();
     $second = User::factory()->create();
 
-    $team->members()->attach($this->user, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($this->user, ['role' => TeamRole::Admin->value]);
     $team->members()->attach($second, ['role' => TeamRole::Member->value]);
     $this->user->switchTeam($team);
 
@@ -445,7 +445,7 @@ test('the detail panel hides actions from a member who cannot manage the event t
     $team = Team::factory()->create();
     $member = User::factory()->create();
 
-    $team->members()->attach($this->user, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($this->user, ['role' => TeamRole::Admin->value]);
     $team->members()->attach($member, ['role' => TeamRole::Member->value]);
     $member->switchTeam($team);
 
@@ -490,7 +490,7 @@ test('scoping to a group narrows the list to that groups event types', function 
     $team = Team::factory()->create();
     $member = User::factory()->create();
 
-    $team->members()->attach($this->user, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($this->user, ['role' => TeamRole::Admin->value]);
     $team->members()->attach($member, ['role' => TeamRole::Member->value]);
     $this->user->switchTeam($team);
 
@@ -521,7 +521,7 @@ test('team event types are listed under Shared with their host avatars', functio
     $team = Team::factory()->create();
     $second = User::factory()->create(['name' => 'Kim Alvarez']);
 
-    $team->members()->attach($this->user, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($this->user, ['role' => TeamRole::Admin->value]);
     $team->members()->attach($second, ['role' => TeamRole::Member->value]);
     $this->user->switchTeam($team);
 
@@ -631,7 +631,7 @@ test('a plain member cannot disable or duplicate a colleagues event type', funct
     $team = Team::factory()->create();
     $member = User::factory()->create();
 
-    $team->members()->attach($this->user, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($this->user, ['role' => TeamRole::Admin->value]);
     $team->members()->attach($member, ['role' => TeamRole::Member->value]);
     $member->switchTeam($team);
 

@@ -59,8 +59,6 @@ type Props = {
     invitations: TeamInvitation[];
     permissions: TeamPermissions;
     availableRoles: RoleOption[];
-    /** Includes Owner when the viewer may hand ownership over. */
-    memberRoles: RoleOption[];
     timezones: string[];
 };
 
@@ -416,7 +414,7 @@ const submitProfile = () => {
                     <div class="flex items-center gap-2">
                         <DropdownMenu
                             v-if="
-                                member.role !== 'owner' &&
+                                !member.isLastAdmin &&
                                 permissions.canUpdateMember
                             "
                         >
@@ -434,7 +432,7 @@ const submitProfile = () => {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent>
                                 <DropdownMenuItem
-                                    v-for="role in memberRoles"
+                                    v-for="role in availableRoles"
                                     :key="role.value"
                                     data-test="member-role-option"
                                     @click="
@@ -451,7 +449,7 @@ const submitProfile = () => {
 
                         <TooltipProvider
                             v-if="
-                                member.role !== 'owner' &&
+                                !member.isLastAdmin &&
                                 permissions.canRemoveMember
                             "
                         >

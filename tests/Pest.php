@@ -59,7 +59,7 @@ function invitationFor(string $email, ?string $teamName = null): TeamInvitation
 {
     $owner = User::factory()->create();
     $team = Team::factory()->create(['name' => $teamName ?? 'Laravel Team']);
-    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($owner, ['role' => TeamRole::Admin->value]);
 
     return TeamInvitation::factory()->create([
         'team_id' => $team->id,

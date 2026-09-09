@@ -16,7 +16,7 @@ beforeEach(function () {
     $this->team = Team::factory()->create();
     $this->member = User::factory()->create();
 
-    $this->team->members()->attach($this->owner, ['role' => TeamRole::Owner->value]);
+    $this->team->members()->attach($this->owner, ['role' => TeamRole::Admin->value]);
     $this->team->members()->attach($this->member, ['role' => TeamRole::Member->value]);
     $this->owner->switchTeam($this->team);
 });

@@ -84,23 +84,22 @@ test('a super admin changes the role a user holds in an organization', function 
     expect($member->fresh()->teamRole($team))->toBe(TeamRole::Admin);
 });
 
-test('handing ownership from the directory demotes the previous owner', function () {
+test('the directory refuses to demote the last administrator', function () {
     $team = Team::factory()->create();
-    $owner = User::factory()->create();
-    $successor = User::factory()->create();
+    $admin = User::factory()->create();
+    $member = User::factory()->create();
 
-    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
-    $team->members()->attach($successor, ['role' => TeamRole::Member->value]);
+    $team->members()->attach($admin, ['role' => TeamRole::Admin->value]);
+    $team->members()->attach($member, ['role' => TeamRole::Member->value]);
 
     $this->actingAs(superAdminUser())
-        ->patch(route('users.role', ['user' => $successor->id]), [
+        ->patch(route('users.role', ['user' => $admin->id]), [
             'team_id' => $team->id,
-            'role' => TeamRole::Owner->value,
+            'role' => TeamRole::Member->value,
         ])
-        ->assertRedirect();
+        ->assertSessionHasErrors('role');
 
-    expect($successor->fresh()->teamRole($team))->toBe(TeamRole::Owner)
-        ->and($owner->fresh()->teamRole($team))->toBe(TeamRole::Admin);
+    expect($admin->fresh()->teamRole($team))->toBe(TeamRole::Admin);
 });
 
 test('a super admin deletes an account', function () {

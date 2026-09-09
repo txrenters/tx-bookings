@@ -19,7 +19,7 @@ test('login screen can be rendered', function () {
 test('login screen includes team invitation context', function () {
     $owner = User::factory()->create();
     $team = Team::factory()->create(['name' => 'Laravel Team']);
-    $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+    $team->members()->attach($owner, ['role' => TeamRole::Admin->value]);
 
     $invitation = TeamInvitation::factory()->create([
         'team_id' => $team->id,

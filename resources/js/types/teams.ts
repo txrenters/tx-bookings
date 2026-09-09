@@ -1,4 +1,4 @@
-export type TeamRole = 'owner' | 'admin' | 'member';
+export type TeamRole = 'admin' | 'member';
 
 export type Team = {
     id: number;
@@ -22,6 +22,8 @@ export type TeamMember = {
     avatar?: string | null;
     role: TeamRole;
     role_label: string;
+    /** The organization's only administrator, so they cannot be demoted or removed. */
+    isLastAdmin?: boolean;
 };
 
 export type TeamInvitation = {

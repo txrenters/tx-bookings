@@ -8,9 +8,9 @@ use App\Models\CalendarAccount;
 use App\Models\Membership;
 use App\Models\Team;
 use App\Models\User;
+use App\Policies\TeamPolicy;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\Rule;
@@ -54,12 +54,7 @@ class UserDirectoryController extends Controller
             'page' => $users->currentPage(),
             'lastPage' => $users->lastPage(),
             'total' => $users->total(),
-            // Owner included: a super admin may hand an organization over from
-            // here, and the controller demotes the previous one.
-            'roles' => array_map(
-                fn (TeamRole $role) => ['value' => $role->value, 'label' => $role->label()],
-                TeamRole::cases(),
-            ),
+            'roles' => TeamRole::assignable(),
         ]);
     }
 
@@ -101,19 +96,17 @@ class UserDirectoryController extends Controller
             ->firstOrFail();
 
         $role = TeamRole::from($validated['role']);
+        $team = $membership->team;
 
-        DB::transaction(function () use ($membership, $role, $user, $validated) {
-            // One owner per organization, the same rule the team screen keeps.
-            if ($role === TeamRole::Owner) {
-                Membership::query()
-                    ->where('team_id', $validated['team_id'])
-                    ->where('user_id', '!=', $user->id)
-                    ->where('role', TeamRole::Owner)
-                    ->update(['role' => TeamRole::Admin]);
-            }
+        // An organization has to keep an administrator, here as much as on the
+        // organization's own screen.
+        if ($role !== TeamRole::Admin && app(TeamPolicy::class)->isLastAdmin($user, $team)) {
+            return back()->withErrors([
+                'role' => __('The last administrator of :team cannot be demoted.', ['team' => $team->name]),
+            ]);
+        }
 
-            $membership->update(['role' => $role]);
-        });
+        $membership->update(['role' => $role]);
 
         Inertia::flash('toast', [
             'type' => 'success',
