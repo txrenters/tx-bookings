@@ -98,11 +98,29 @@ const addQuestion = () => {
     ];
 };
 
-const setOptions = (question: Record<string, any>, value: string) => {
-    question.options = value
-        .split('\n')
-        .map((line) => line.trim())
-        .filter(Boolean);
+/**
+ * Options are edited one field at a time rather than as lines of text: a
+ * newline-separated box hides how many there are and loses one to a stray
+ * blank line.
+ */
+const addOption = (question: Record<string, any>) => {
+    question.options = [...(question.options ?? []), ''];
+};
+
+const setOption = (
+    question: Record<string, any>,
+    index: number,
+    value: string,
+) => {
+    const options = [...(question.options ?? [])];
+    options[index] = value;
+    question.options = options;
+};
+
+const removeOption = (question: Record<string, any>, index: number) => {
+    question.options = (question.options ?? []).filter(
+        (_: string, at: number) => at !== index,
+    );
 };
 </script>
 
@@ -553,16 +571,50 @@ const setOptions = (question: Record<string, any>, value: string) => {
                             (type) => type.value === question.type,
                         )?.hasOptions
                     "
+                    class="grid gap-2"
                 >
-                    <Label :for="`question-options-${index}`">
-                        Options (one per line)
-                    </Label>
-                    <Textarea
-                        :id="`question-options-${index}`"
-                        :model-value="(question.options ?? []).join('\n')"
-                        @update:model-value="
-                            (value) => setOptions(question, String(value))
-                        "
+                    <Label>Options</Label>
+                    <div
+                        v-for="(option, optionIndex) in question.options ?? []"
+                        :key="optionIndex"
+                        class="flex items-center gap-2"
+                    >
+                        <Input
+                            :model-value="option"
+                            :placeholder="`Option ${optionIndex + 1}`"
+                            :data-test="`question-option-${index}-${optionIndex}`"
+                            @update:model-value="
+                                (value) =>
+                                    setOption(
+                                        question,
+                                        optionIndex,
+                                        String(value),
+                                    )
+                            "
+                        />
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            aria-label="Remove option"
+                            :data-test="`remove-option-${index}-${optionIndex}`"
+                            @click="removeOption(question, optionIndex)"
+                        >
+                            <Trash2 class="size-3.5" />
+                        </Button>
+                    </div>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        class="justify-self-start"
+                        :data-test="`add-option-${index}`"
+                        @click="addOption(question)"
+                    >
+                        <Plus class="size-3.5" /> Add option
+                    </Button>
+                    <InputError
+                        :message="fields.errors[`questions.${index}.options`]"
                     />
                 </div>
 

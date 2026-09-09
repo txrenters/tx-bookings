@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\BookingStatus;
+use App\Enums\QuestionType;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Jobs\SyncBookingToCalendars;
 use App\Models\ActivityLog;
@@ -514,4 +515,70 @@ test('the invitee confirmation email offers no reschedule or cancel link', funct
 
     expect($body)->not->toContain('Reschedule')
         ->and($body)->not->toContain('Cancel this meeting');
+});
+
+test('a yes or no question is answered from its two options', function () {
+    $question = $this->eventType->questions()->create([
+        'type' => QuestionType::YesNo,
+        'label' => 'Is this your first visit?',
+        'is_required' => true,
+        'position' => 0,
+    ]);
+
+    $startsAt = CarbonImmutable::parse('2026-09-02 10:00:00', 'UTC');
+
+    $this->post(route('book.store', ['page' => 'dana', 'eventType' => 'intro']), [
+        'starts_at' => $startsAt->toIso8601String(),
+        'timezone' => 'America/Chicago',
+        'name' => 'Sam Rivera',
+        'email' => 'sam@example.com',
+        'answers' => [$question->id => 'Yes'],
+    ])->assertSessionHasNoErrors();
+
+    expect(Booking::latest('id')->first()->answers()->sole()->answer)->toBe('Yes');
+});
+
+test('a pick multiple question keeps every answer', function () {
+    $question = $this->eventType->questions()->create([
+        'type' => QuestionType::MultiSelect,
+        'label' => 'What would you like to cover?',
+        'options' => ['Billing', 'Owner statements', 'Maintenance'],
+        'is_required' => true,
+        'position' => 0,
+    ]);
+
+    $startsAt = CarbonImmutable::parse('2026-09-02 10:00:00', 'UTC');
+
+    $this->post(route('book.store', ['page' => 'dana', 'eventType' => 'intro']), [
+        'starts_at' => $startsAt->toIso8601String(),
+        'timezone' => 'America/Chicago',
+        'name' => 'Sam Rivera',
+        'email' => 'sam@example.com',
+        'answers' => [$question->id => ['Billing', 'Maintenance']],
+    ])->assertSessionHasNoErrors();
+
+    expect(Booking::latest('id')->first()->answers()->sole()->answer)
+        ->toBe('Billing, Maintenance');
+});
+
+test('an answer outside the offered options is refused', function () {
+    $question = $this->eventType->questions()->create([
+        'type' => QuestionType::Select,
+        'label' => 'Which property?',
+        'options' => ['Oak Street', 'Elm Street'],
+        'is_required' => true,
+        'position' => 0,
+    ]);
+
+    $startsAt = CarbonImmutable::parse('2026-09-02 10:00:00', 'UTC');
+
+    $this->post(route('book.store', ['page' => 'dana', 'eventType' => 'intro']), [
+        'starts_at' => $startsAt->toIso8601String(),
+        'name' => 'Sam Rivera',
+        'email' => 'sam@example.com',
+        'timezone' => 'America/Chicago',
+        'answers' => [$question->id => 'Somewhere else'],
+    ])->assertSessionHasErrors("answers.{$question->id}");
+
+    expect(Booking::query()->where('email', 'sam@example.com')->exists())->toBeFalse();
 });

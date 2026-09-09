@@ -74,8 +74,26 @@ class StoreBookingRequest extends FormRequest
                 $answers = $this->input('answers', []);
 
                 foreach ($eventType->questions as $question) {
-                    if ($question->is_required && blank($answers[$question->id] ?? null)) {
+                    $answer = $answers[$question->id] ?? null;
+
+                    if ($question->is_required && blank($answer)) {
                         $validator->errors()->add("answers.{$question->id}", 'This field is required.');
+
+                        continue;
+                    }
+
+                    if (blank($answer) || ! $question->type->isConstrained()) {
+                        continue;
+                    }
+
+                    // A question with a fixed set of answers only accepts those:
+                    // the invitee picks from a list, so anything else was not
+                    // typed into this form.
+                    $allowed = $question->type->answerOptions($question->options ?? []);
+                    $given = is_array($answer) ? $answer : [$answer];
+
+                    if (array_diff($given, $allowed) !== []) {
+                        $validator->errors()->add("answers.{$question->id}", 'Choose one of the offered answers.');
                     }
                 }
             },

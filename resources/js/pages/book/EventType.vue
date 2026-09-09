@@ -105,8 +105,25 @@ const form = useForm({
     notes: '',
     location_detail: '',
     guests: [] as string[],
-    answers: {} as Record<number, string>,
+    answers: {} as Record<number, string | string[]>,
 });
+
+/*
+ * A pick-multiple answer has to start as an array: a checkbox bound to an
+ * undefined value sets a boolean instead of collecting the options.
+ */
+props.eventType.questions
+    .filter((question) => question.type === 'multi_select')
+    .forEach((question) => {
+        form.answers[question.id] = [];
+    });
+
+/** The map holds arrays for pick-multiple, so single controls read through. */
+const singleAnswer = (id: number) => {
+    const answer = form.answers[id];
+
+    return Array.isArray(answer) ? '' : (answer ?? '');
+};
 
 const errorFor = (key: string) => (form.errors as Record<string, string>)[key];
 
@@ -602,7 +619,10 @@ const submit = () => {
                                 :key="question.id"
                                 class="grid gap-2"
                             >
-                                <Label :for="`question-${question.id}`">
+                                <Label
+                                    :id="`question-${question.id}-label`"
+                                    :for="`question-${question.id}`"
+                                >
                                     {{ question.label }}
                                     <span
                                         v-if="question.isRequired"
@@ -614,7 +634,12 @@ const submit = () => {
                                 <Textarea
                                     v-if="question.type === 'textarea'"
                                     :id="`question-${question.id}`"
-                                    v-model="form.answers[question.id]"
+                                    :model-value="singleAnswer(question.id)"
+                                    @update:model-value="
+                                        (value) =>
+                                            (form.answers[question.id] =
+                                                String(value))
+                                    "
                                     :required="question.isRequired"
                                     :aria-describedby="
                                         question.helpText
@@ -622,9 +647,59 @@ const submit = () => {
                                             : undefined
                                     "
                                 />
+                                <!--
+                                  Radios for a yes or no, checkboxes for a pick
+                                  multiple: both used to fall through to a bare
+                                  text box, which asked the invitee to guess.
+                                -->
+                                <div
+                                    v-else-if="question.type === 'yes_no'"
+                                    class="flex gap-4"
+                                    role="radiogroup"
+                                    :aria-labelledby="`question-${question.id}-label`"
+                                >
+                                    <label
+                                        v-for="option in ['Yes', 'No']"
+                                        :key="option"
+                                        class="flex items-center gap-2 text-sm"
+                                    >
+                                        <input
+                                            v-model="form.answers[question.id]"
+                                            type="radio"
+                                            :name="`question-${question.id}`"
+                                            :value="option"
+                                            :required="question.isRequired"
+                                            class="size-4 accent-primary"
+                                        />
+                                        {{ option }}
+                                    </label>
+                                </div>
+                                <div
+                                    v-else-if="question.type === 'multi_select'"
+                                    class="grid gap-2"
+                                >
+                                    <label
+                                        v-for="option in question.options"
+                                        :key="option"
+                                        class="flex items-center gap-2 text-sm"
+                                    >
+                                        <input
+                                            v-model="form.answers[question.id]"
+                                            type="checkbox"
+                                            :value="option"
+                                            class="size-4 accent-primary"
+                                        />
+                                        {{ option }}
+                                    </label>
+                                </div>
                                 <Select
+                                    :model-value="singleAnswer(question.id)"
                                     v-else-if="question.type === 'select'"
-                                    v-model="form.answers[question.id]"
+                                    @update:model-value="
+                                        (value) =>
+                                            (form.answers[question.id] =
+                                                String(value))
+                                    "
                                 >
                                     <SelectTrigger
                                         :id="`question-${question.id}`"
@@ -650,7 +725,12 @@ const submit = () => {
                                 <Input
                                     v-else
                                     :id="`question-${question.id}`"
-                                    v-model="form.answers[question.id]"
+                                    :model-value="singleAnswer(question.id)"
+                                    @update:model-value="
+                                        (value) =>
+                                            (form.answers[question.id] =
+                                                String(value))
+                                    "
                                     :required="question.isRequired"
                                     :aria-describedby="
                                         question.helpText
