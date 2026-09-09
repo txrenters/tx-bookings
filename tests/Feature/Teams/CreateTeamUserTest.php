@@ -82,18 +82,19 @@ test('creating a user in an organization puts them in that one alone', function 
 
     $user = User::where('email', 'new.hire@example.com')->firstOrFail();
 
-    expect($user->teams()->count())->toEqual(1)
-        ->and($user->teams()->count())->toBe(1);
+    expect($user->teams()->count())->toBe(1)
+        ->and($user->teams()->first()->is($team))->toBeTrue();
 });
 
-test('an organization owner cannot create a user directly', function () {
+test('a member cannot create a user directly', function () {
     Notification::fake();
 
-    $owner = User::factory()->create();
+    // Running the organization is what allows it; being in one is not.
+    $member = User::factory()->create();
     $team = Team::factory()->create();
-    $team->members()->attach($owner, ['role' => TeamRole::Admin->value]);
+    $team->members()->attach($member, ['role' => TeamRole::Member->value]);
 
-    $this->actingAs($owner)
+    $this->actingAs($member)
         ->post(route('teams.members.store', $team), [
             'name' => 'New Hire',
             'email' => 'new.hire@example.com',
@@ -102,6 +103,25 @@ test('an organization owner cannot create a user directly', function () {
         ->assertForbidden();
 
     expect(User::where('email', 'new.hire@example.com')->exists())->toBeFalse();
+});
+
+test('an organization admin creates a user directly', function () {
+    Notification::fake();
+
+    $admin = User::factory()->create();
+    $team = Team::factory()->create();
+    $team->members()->attach($admin, ['role' => TeamRole::Admin->value]);
+
+    $this->actingAs($admin)
+        ->post(route('teams.members.store', $team), [
+            'name' => 'New Hire',
+            'email' => 'new.hire@example.com',
+            'role' => TeamRole::Member->value,
+        ])
+        ->assertRedirect();
+
+    expect(User::where('email', 'new.hire@example.com')->sole()->teamRole($team))
+        ->toBe(TeamRole::Member);
 });
 
 test('a user cannot be created with an address that already has an account', function () {

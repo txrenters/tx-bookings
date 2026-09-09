@@ -200,7 +200,7 @@ defineOptions({
                         {{ total }} {{ total === 1 ? 'account' : 'accounts' }}
                     </p>
                     <Button
-                        v-if="canManage"
+                        v-if="organizations.length || canManage"
                         data-test="new-user"
                         @click="openCreate"
                     >
@@ -503,6 +503,7 @@ defineOptions({
                     </div>
 
                     <label
+                        v-if="canManage"
                         class="flex items-center justify-between gap-3 rounded-lg border border-border p-3"
                     >
                         <span>

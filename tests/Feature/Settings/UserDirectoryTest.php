@@ -257,13 +257,14 @@ test('an account that is not a super admin needs an organization and a role', fu
     $this->assertDatabaseMissing('users', ['email' => 'nowhere@texasrenters.com']);
 });
 
-test('an organization admin cannot create accounts', function () {
+test('a member cannot create accounts', function () {
     $team = Team::factory()->create();
-    $admin = User::factory()->create();
+    $member = User::factory()->create();
 
-    $team->members()->attach($admin, ['role' => TeamRole::Admin->value]);
+    $member->teams()->detach();
+    $team->members()->attach($member, ['role' => TeamRole::Member->value]);
 
-    $this->actingAs($admin)
+    $this->actingAs($member)
         ->post(route('users.store'), [
             'name' => 'Sneaky',
             'email' => 'sneaky@example.com',
@@ -273,4 +274,68 @@ test('an organization admin cannot create accounts', function () {
         ->assertForbidden();
 
     $this->assertDatabaseMissing('users', ['email' => 'sneaky@example.com']);
+});
+
+test('an organization admin creates an account in their own organization', function () {
+    Notification::fake();
+
+    $team = Team::factory()->create();
+    $admin = User::factory()->create();
+
+    $admin->teams()->detach();
+    $team->members()->attach($admin, ['role' => TeamRole::Admin->value]);
+
+    $this->actingAs($admin)
+        ->post(route('users.store'), [
+            'name' => 'New Colleague',
+            'email' => 'colleague@texasrenters.com',
+            'team_id' => $team->id,
+            'role' => TeamRole::Member->value,
+        ])
+        ->assertRedirect();
+
+    $created = User::query()->where('email', 'colleague@texasrenters.com')->sole();
+
+    expect($created->teamRole($team))->toBe(TeamRole::Member);
+
+    Notification::assertSentTo($created, ResetPassword::class);
+});
+
+test('an admin cannot create a super admin', function () {
+    $team = Team::factory()->create();
+    $admin = User::factory()->create();
+
+    $admin->teams()->detach();
+    $team->members()->attach($admin, ['role' => TeamRole::Admin->value]);
+
+    $this->actingAs($admin)
+        ->post(route('users.store'), [
+            'name' => 'Operator',
+            'email' => 'operator@texasrenters.com',
+            'is_super_admin' => true,
+        ])
+        ->assertForbidden();
+
+    $this->assertDatabaseMissing('users', ['email' => 'operator@texasrenters.com']);
+});
+
+test('an admin cannot create an account in an organization they do not administer', function () {
+    $ownTeam = Team::factory()->create();
+    $otherTeam = Team::factory()->create();
+    $admin = User::factory()->create();
+
+    $admin->teams()->detach();
+    $ownTeam->members()->attach($admin, ['role' => TeamRole::Admin->value]);
+    $otherTeam->members()->attach($admin, ['role' => TeamRole::Member->value]);
+
+    $this->actingAs($admin)
+        ->post(route('users.store'), [
+            'name' => 'Elsewhere',
+            'email' => 'elsewhere@texasrenters.com',
+            'team_id' => $otherTeam->id,
+            'role' => TeamRole::Member->value,
+        ])
+        ->assertForbidden();
+
+    $this->assertDatabaseMissing('users', ['email' => 'elsewhere@texasrenters.com']);
 });

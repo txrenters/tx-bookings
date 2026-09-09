@@ -97,6 +97,7 @@ class TeamController extends Controller
                     'created_at' => $invitation->created_at->toISOString(),
                 ]),
             'permissions' => $user->toTeamPermissions($team),
+            'canCreateMember' => $user->can('createMember', $team),
             'availableRoles' => TeamRole::assignable(),
             'timezones' => timezone_identifiers_list(),
         ]);

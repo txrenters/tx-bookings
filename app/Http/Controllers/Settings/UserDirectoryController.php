@@ -81,9 +81,14 @@ class UserDirectoryController extends Controller
             'total' => $users->total(),
             'roles' => TeamRole::assignable(),
             'canManage' => $canManage,
+            // Where this viewer may create an account: everywhere for a super
+            // admin, their own organizations for an administrator.
             'organizations' => $canManage
                 ? Team::query()->orderBy('name')->get(['id', 'name'])
-                : [],
+                : $viewer->teams()
+                    ->wherePivot('role', TeamRole::Admin->value)
+                    ->orderBy('name')
+                    ->get(['teams.id', 'teams.name']),
         ]);
     }
 
@@ -97,7 +102,15 @@ class UserDirectoryController extends Controller
      */
     public function store(CreateDirectoryUserRequest $request, CreateTeamUser $createTeamUser): RedirectResponse
     {
-        Gate::authorize('manageUsers');
+        // A super admin is created by a super admin; anyone else is created by
+        // whoever administers the organization they are going into.
+        if ($request->boolean('is_super_admin')) {
+            Gate::authorize('manageUsers');
+        } else {
+            $team = Team::query()->whereKey($request->validated('team_id'))->firstOrFail();
+
+            Gate::authorize('createMember', $team);
+        }
 
         if ($request->boolean('is_super_admin')) {
             $user = DB::transaction(function () use ($request) {
@@ -122,7 +135,7 @@ class UserDirectoryController extends Controller
             Password::sendResetLink(['email' => $user->email]);
         } else {
             $user = $createTeamUser->handle(
-                Team::query()->whereKey($request->validated('team_id'))->firstOrFail(),
+                $team,
                 $request->validated('name'),
                 $request->validated('email'),
                 TeamRole::from($request->validated('role')),

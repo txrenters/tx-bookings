@@ -96,15 +96,18 @@ class TeamPolicy
     /**
      * Determine whether the user can create a user account directly in the team.
      *
-     * Deliberately narrower than inviteMember: creating an account outright
-     * bypasses the invited person's own consent and the email round-trip, so
-     * it is reserved for super admins. Org owners and admins still invite.
-     * Note that isSuperAdmin() must be asked explicitly here — teamRole() is
-     * null for a super admin, so a permission lookup would deny them.
+     * An administrator runs the organization, so putting someone in it is
+     * theirs to do -- by invitation, or by creating the account outright. It
+     * still creates no password: the account gets a link to set its own, so
+     * skipping the invitation skips the waiting, not the person's consent to
+     * their own credentials.
+     *
+     * isSuperAdmin() is asked explicitly because teamRole() is null for one:
+     * they belong to no organization, so a role lookup would deny them.
      */
     public function createMember(User $user, Team $team): bool
     {
-        return $user->isSuperAdmin();
+        return $user->isSuperAdmin() || $user->teamRole($team) === TeamRole::Admin;
     }
 
     /**

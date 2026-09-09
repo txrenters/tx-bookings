@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, router, useForm, usePage } from '@inertiajs/vue3';
+import { Head, router, useForm } from '@inertiajs/vue3';
 import {
     ChevronDown,
     ImageUp,
@@ -59,6 +59,8 @@ type Props = {
     invitations: TeamInvitation[];
     permissions: TeamPermissions;
     availableRoles: RoleOption[];
+    /** Admins create accounts in their own organization; so do super admins. */
+    canCreateMember: boolean;
     timezones: string[];
 };
 
@@ -81,13 +83,11 @@ defineOptions({
 
 const { getInitials } = useInitials();
 
-const page = usePage();
-
 /**
  * Creating an account outright is super admin only, matching
  * TeamPolicy::createMember. Everyone else invites.
  */
-const canCreateMember = computed(() => page.props.isSuperAdmin);
+const canCreateMember = computed(() => props.canCreateMember);
 
 const inviteDialogOpen = ref(false);
 const createMemberDialogOpen = ref(false);
