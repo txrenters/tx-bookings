@@ -61,7 +61,6 @@ type Props = {
         questions: Question[];
     };
     timezone: string;
-    timezones: string[];
     month: string;
     slots?: Record<string, Slot[]>;
     reschedule?: string | null;
@@ -120,7 +119,7 @@ const reload = (query: Record<string, string>) => {
     selectedSlot.value = null;
 
     router.reload({
-        data: { month: props.month, timezone: props.timezone, ...query },
+        data: { month: props.month, ...query },
         only: ['slots', 'month', 'timezone'],
     });
 };
@@ -338,44 +337,21 @@ const submit = () => {
                                     @select="selectDate"
                                 />
 
-                                <div class="mt-8 grid gap-2">
-                                    <Label
-                                        for="timezone"
-                                        class="flex items-center gap-1.5 text-muted-foreground"
-                                    >
-                                        <Globe
-                                            class="size-3.5"
-                                            aria-hidden="true"
-                                        />
-                                        Time zone
-                                    </Label>
-                                    <Select
-                                        :model-value="timezone"
-                                        @update:model-value="
-                                            (value) =>
-                                                reload({
-                                                    timezone: value as string,
-                                                })
-                                        "
-                                    >
-                                        <SelectTrigger
-                                            id="timezone"
-                                            class="w-full cursor-pointer"
-                                            data-test="timezone-select"
-                                        >
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent class="max-h-72">
-                                            <SelectItem
-                                                v-for="zone in timezones"
-                                                :key="zone"
-                                                :value="zone"
-                                            >
-                                                {{ zone }}
-                                            </SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
+                                <!--
+                                  Times are shown in the organizer's timezone
+                                  and said so, rather than offering the invitee
+                                  a picker: one answer to "what time is this?".
+                                -->
+                                <p
+                                    class="mt-8 flex items-center gap-1.5 text-sm text-muted-foreground"
+                                    data-test="booking-timezone"
+                                >
+                                    <Globe
+                                        class="size-3.5"
+                                        aria-hidden="true"
+                                    />
+                                    Times shown in {{ timezone }}
+                                </p>
                             </div>
 
                             <div class="min-w-0">

@@ -93,7 +93,10 @@ test('the deferred slot lookup returns the open times grouped by local date', fu
         ->and($slots['2026-09-02'])->toHaveCount(8);
 });
 
-test('the deferred slot lookup honours the requested timezone', function () {
+test('slots are shown in the organizers timezone, whatever the invitee asks for', function () {
+    // The invitee used to choose; the page now states the organizer's zone.
+    $this->host->update(['timezone' => 'America/Chicago']);
+
     $response = $this->withHeaders([
         'X-Inertia' => 'true',
         'X-Inertia-Partial-Data' => 'slots',
@@ -103,12 +106,12 @@ test('the deferred slot lookup honours the requested timezone', function () {
         'page' => 'dana',
         'eventType' => 'intro',
         'month' => '2026-09',
-        'timezone' => 'America/Chicago',
+        'timezone' => 'Asia/Tokyo',
     ]));
 
     $slots = $response->assertOk()->json('props.slots');
 
-    // 09:00 UTC is 04:00 in Chicago on that date.
+    // 09:00 UTC is 04:00 in Chicago, and Tokyo is not consulted.
     expect($slots['2026-09-02'][0]['label'])->toBe('4:00am');
 });
 

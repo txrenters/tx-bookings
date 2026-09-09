@@ -118,7 +118,7 @@ class BookingPageController extends Controller
             return $this->teamPage($owner, $page, $group);
         }
 
-        $timezone = $this->resolveTimezone($request, $owner);
+        $timezone = $this->resolveTimezone($owner);
         $month = $this->resolveMonth($request, $timezone);
 
         return Inertia::render('book/EventType', [
@@ -130,7 +130,6 @@ class BookingPageController extends Controller
             ],
             'eventType' => $this->toPayload($type),
             'timezone' => $timezone,
-            'timezones' => timezone_identifiers_list(),
             'month' => $month->format('Y-m'),
             'reschedule' => $request->string('reschedule')->toString() ?: null,
             'slots' => Inertia::defer(fn () => $this->slotsForMonth($type, $month, $timezone)),
@@ -180,14 +179,14 @@ class BookingPageController extends Controller
     /**
      * Work out which timezone to show times in.
      */
-    protected function resolveTimezone(Request $request, User|Team $owner): string
+    protected function resolveTimezone(User|Team $owner): string
     {
-        $requested = $request->string('timezone')->toString();
-
-        if ($requested !== '' && in_array($requested, timezone_identifiers_list(), true)) {
-            return $requested;
-        }
-
+        /*
+         * The organizer's timezone, and only theirs. The invitee used to be
+         * able to pick one; times are now stated in the organizer's zone and
+         * labelled with it, so there is one answer to "what time is this?"
+         * rather than one per reader.
+         */
         return $owner->timezone ?: config('scheduling.default_timezone');
     }
 
