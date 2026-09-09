@@ -6,8 +6,10 @@ use App\Models\AvailabilitySchedule;
 use App\Models\Booking;
 use App\Models\CalendarAccount;
 use App\Models\EventType;
+use App\Models\LeavePeriod;
 use App\Models\MeetingLimit;
 use App\Models\Team;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
@@ -65,6 +67,26 @@ trait HasScheduling
     public function calendarAccounts(): HasMany
     {
         return $this->hasMany(CalendarAccount::class);
+    }
+
+    /**
+     * Get the stretches of leave the user is away for.
+     *
+     * @return HasMany<LeavePeriod, $this>
+     */
+    public function leavePeriods(): HasMany
+    {
+        return $this->hasMany(LeavePeriod::class);
+    }
+
+    /**
+     * Determine whether the user is away at the given moment.
+     */
+    public function isOnLeave(?CarbonImmutable $moment = null): bool
+    {
+        return $this->leavePeriods()
+            ->covering($moment ?? CarbonImmutable::now())
+            ->exists();
     }
 
     /**

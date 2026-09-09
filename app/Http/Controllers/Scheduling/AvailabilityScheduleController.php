@@ -15,6 +15,8 @@ use App\Models\Calendar;
 use App\Models\CalendarAccount;
 use App\Models\MeetingLimit;
 use App\Models\Team;
+use App\Services\Calendar\CalendarProviderManager;
+use App\Services\Calendar\DetectsLeaveContract;
 use App\Services\Scheduling\HolidayCalendar;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -47,11 +49,11 @@ class AvailabilityScheduleController extends Controller
     /**
      * Show which calendars are checked for conflicts and written to.
      */
-    public function calendars(Request $request, Team $current_team): Response
+    public function calendars(Request $request, Team $current_team, CalendarProviderManager $providers): Response
     {
         $accounts = $request->user()
             ->calendarAccounts()
-            ->with('calendars')
+            ->with(['calendars', 'leavePeriod'])
             ->orderBy('provider')
             ->get();
 
@@ -71,6 +73,12 @@ class AvailabilityScheduleController extends Controller
                 'email' => $account->email,
                 'lastSyncedAt' => $account->last_synced_at?->toIso8601String(),
                 'syncError' => $account->sync_error,
+                'detectsLeave' => $providers->driver($account->provider) instanceof DetectsLeaveContract,
+                'leave' => $account->leavePeriod === null ? null : [
+                    'startsAt' => $account->leavePeriod->starts_at->toIso8601String(),
+                    'endsAt' => $account->leavePeriod->ends_at->toIso8601String(),
+                    'message' => $account->leavePeriod->message,
+                ],
                 'calendars' => $account->calendars->map(fn (Calendar $calendar) => [
                     'id' => $calendar->id,
                     'name' => $calendar->name,

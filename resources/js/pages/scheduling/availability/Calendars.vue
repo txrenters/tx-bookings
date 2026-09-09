@@ -4,6 +4,7 @@ import {
     CalendarCheck,
     CalendarPlus,
     CircleCheck,
+    PlaneTakeoff,
     Plug,
     RefreshCw,
     Trash2,
@@ -26,6 +27,12 @@ type CalendarRow = {
     isWriteTarget: boolean;
 };
 
+type Leave = {
+    startsAt: string;
+    endsAt: string;
+    message: string | null;
+};
+
 type Props = {
     providers: Array<{
         value: string;
@@ -40,6 +47,8 @@ type Props = {
         email: string;
         lastSyncedAt: string | null;
         syncError: string | null;
+        detectsLeave: boolean;
+        leave: Leave | null;
         calendars: CalendarRow[];
     }>;
 };
@@ -54,6 +63,26 @@ const connectableProviders = computed(() =>
 
 const formatSynced = (value: string | null) =>
     value ? new Date(value).toLocaleString() : 'Not yet';
+
+/**
+ * Leave ends at the minute the automatic reply is set to stop, which is often
+ * mid morning rather than midnight, so the time is part of the answer: a bare
+ * date reads as "the whole day is off" and the afternoon is bookable.
+ */
+const formatMoment = (value: string) =>
+    new Date(value).toLocaleString(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+    });
+
+/**
+ * Describe the leave the mailbox is announcing, from the reader's point of
+ * view: away right now reads as a return time, away later as a range.
+ */
+const leaveLabel = (leave: Leave) =>
+    new Date(leave.startsAt) <= new Date()
+        ? `On leave until ${formatMoment(leave.endsAt)}`
+        : `On leave ${formatMoment(leave.startsAt)} - ${formatMoment(leave.endsAt)}`;
 
 const save = (calendar: CalendarRow, changes: Partial<CalendarRow>) => {
     router.patch(
@@ -215,6 +244,39 @@ setLayoutProps({
                             </label>
                         </div>
                     </div>
+                </div>
+
+                <div
+                    v-if="account.detectsLeave"
+                    class="flex flex-wrap items-center justify-between gap-3 border-t p-5"
+                    data-test="account-leave"
+                >
+                    <span class="flex items-center gap-2 text-sm">
+                        <PlaneTakeoff
+                            class="size-4"
+                            :class="
+                                account.leave
+                                    ? 'text-primary'
+                                    : 'text-muted-foreground'
+                            "
+                        />
+                        <span v-if="account.leave" class="font-medium">
+                            {{ leaveLabel(account.leave) }}
+                        </span>
+                        <span v-else class="text-muted-foreground">
+                            No out of office reply switched on
+                        </span>
+                    </span>
+
+                    <p class="max-w-md text-xs text-muted-foreground">
+                        <template v-if="account.leave?.message">
+                            &ldquo;{{ account.leave.message }}&rdquo;
+                        </template>
+                        <template v-else>
+                            Turn on your Outlook automatic reply and we will
+                            stop offering your time until you are back.
+                        </template>
+                    </p>
                 </div>
             </section>
         </div>

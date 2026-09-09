@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 
 /**
@@ -28,6 +29,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  * @property-read User $user
  * @property-read Collection<int, Calendar> $calendars
+ * @property-read LeavePeriod|null $leavePeriod
  */
 #[Fillable([
     'user_id', 'provider', 'external_id', 'email', 'access_token', 'refresh_token',
@@ -57,6 +59,16 @@ class CalendarAccount extends Model
     public function calendars(): HasMany
     {
         return $this->hasMany(Calendar::class);
+    }
+
+    /**
+     * Get the leave detected from this mailbox's automatic reply.
+     *
+     * @return HasOne<LeavePeriod, $this>
+     */
+    public function leavePeriod(): HasOne
+    {
+        return $this->hasOne(LeavePeriod::class);
     }
 
     /**

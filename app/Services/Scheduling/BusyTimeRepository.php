@@ -5,6 +5,7 @@ namespace App\Services\Scheduling;
 use App\Models\Booking;
 use App\Models\BusyBlock;
 use App\Models\EventType;
+use App\Models\LeavePeriod;
 use App\Support\TimeRange;
 use Illuminate\Support\Collection;
 
@@ -14,9 +15,11 @@ class BusyTimeRepository
      * Get the time a host is already committed inside the given window.
      *
      * Bookings are padded with the event type's buffers so back to back
-     * meetings keep their breathing room. Bookings belonging to $ignoring are
-     * skipped, which lets a group event offer a slot it has already filled
-     * partially, and lets a reschedule ignore the booking being moved.
+     * meetings keep their breathing room, and leave detected from a host's
+     * out of office reply counts as committed time too. Bookings belonging to
+     * $ignoring are skipped, which lets a group event offer a slot it has
+     * already filled partially, and lets a reschedule ignore the booking
+     * being moved.
      *
      * @param  array<int, int>  $userIds
      * @return Collection<int, Collection<int, TimeRange>> Keyed by user id.
@@ -29,12 +32,14 @@ class BusyTimeRepository
 
         $bookings = $this->bookingRanges($userIds, $window, $excludingEventType, $ignoringBookingId);
         $blocks = $this->busyBlockRanges($userIds, $window);
+        $leave = $this->leaveRanges($userIds, $window);
 
         return (new Collection($userIds))
             ->mapWithKeys(fn (int $userId) => [
                 $userId => TimeRange::merge(
                     ($bookings->get($userId) ?? new Collection)
                         ->merge($blocks->get($userId) ?? new Collection)
+                        ->merge($leave->get($userId) ?? new Collection)
                 ),
             ]);
     }
@@ -89,6 +94,25 @@ class BusyTimeRepository
         $ids = $booking->hosts->pluck('id')->push($booking->user_id)->unique()->all();
 
         return array_values(array_intersect($ids, $userIds));
+    }
+
+    /**
+     * Get the time hosts are away, from leave detected on their mailbox.
+     *
+     * @param  array<int, int>  $userIds
+     * @return Collection<int, Collection<int, TimeRange>>
+     */
+    protected function leaveRanges(array $userIds, TimeRange $window): Collection
+    {
+        return LeavePeriod::query()
+            ->whereIn('user_id', $userIds)
+            ->where('starts_at', '<', $window->end)
+            ->where('ends_at', '>', $window->start)
+            ->get()
+            ->groupBy('user_id')
+            ->map(fn (Collection $periods) => $periods
+                ->map(fn (LeavePeriod $period) => TimeRange::make($period->starts_at, $period->ends_at))
+                ->values());
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Jobs\SyncCalendarBusyBlocks;
+use App\Jobs\SyncLeavePeriods;
 use App\Models\CalendarAccount;
 use Illuminate\Console\Command;
 
@@ -20,7 +21,7 @@ class SyncCalendars extends Command
      *
      * @var string
      */
-    protected $description = 'Refresh cached busy times from every connected calendar';
+    protected $description = 'Refresh cached busy times and leave from every connected calendar';
 
     /**
      * Execute the console command.
@@ -30,11 +31,17 @@ class SyncCalendars extends Command
         $days = (int) $this->option('days');
         $queued = 0;
 
+        // Leave is read from the mailbox, not the calendars, so every account
+        // is asked about it even when none of its calendars block time.
         CalendarAccount::query()
-            ->whereHas('calendars', fn ($calendars) => $calendars->where('checks_conflicts', true))
+            ->with('calendars')
             ->chunkById(100, function ($accounts) use ($days, &$queued) {
                 foreach ($accounts as $account) {
-                    SyncCalendarBusyBlocks::dispatch($account, $days);
+                    if ($account->calendars->where('checks_conflicts', true)->isNotEmpty()) {
+                        SyncCalendarBusyBlocks::dispatch($account, $days);
+                    }
+
+                    SyncLeavePeriods::dispatch($account, $days);
                     $queued++;
                 }
             });

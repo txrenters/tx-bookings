@@ -4,11 +4,14 @@ namespace App\Services\Calendar\Providers;
 
 use App\Data\Calendar\ExternalCalendar;
 use App\Data\Calendar\ExternalEvent;
+use App\Data\Calendar\ExternalLeave;
 use App\Data\Calendar\ProviderIdentity;
 use App\Enums\CalendarProvider;
+use App\Exceptions\MailboxAccessDeniedException;
 use App\Models\Booking;
 use App\Models\CalendarAccount;
 use App\Services\Calendar\CalendarProviderContract;
+use App\Services\Calendar\DetectsLeaveContract;
 use App\Services\Ics\IcsGenerator;
 use App\Support\TimeRange;
 use Carbon\CarbonImmutable;
@@ -17,12 +20,13 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
-class MicrosoftCalendarProvider implements CalendarProviderContract
+class MicrosoftCalendarProvider implements CalendarProviderContract, DetectsLeaveContract
 {
     protected const GRAPH_URL = 'https://graph.microsoft.com/v1.0';
 
     /**
-     * The scopes required to read busy times and manage our own events.
+     * The scopes required to read busy times, spot an out of office reply
+     * and manage our own events.
      *
      * @var array<int, string>
      */
@@ -32,6 +36,7 @@ class MicrosoftCalendarProvider implements CalendarProviderContract
         'offline_access',
         'User.Read',
         'Calendars.ReadWrite',
+        'MailboxSettings.Read',
     ];
 
     public function __construct(protected IcsGenerator $ics)
@@ -171,6 +176,59 @@ class MicrosoftCalendarProvider implements CalendarProviderContract
         }
 
         return $busy->values();
+    }
+
+    /**
+     * Get the leave the account's mailbox is announcing inside the window.
+     *
+     * Outlook's automatic reply is the signal. A scheduled reply carries the
+     * dates the user picked; one switched on with no schedule has no end, so
+     * it blocks the rest of the window and the next sync renews it.
+     */
+    public function leavePeriod(CalendarAccount $account, TimeRange $window): ?ExternalLeave
+    {
+        $response = $this->request($account)
+            ->get(self::GRAPH_URL.'/me/mailboxSettings/automaticRepliesSetting');
+
+        if ($response->forbidden()) {
+            throw MailboxAccessDeniedException::needsReconnect($account->email);
+        }
+
+        $setting = $response->throw()->json();
+        $status = $setting['status'] ?? 'disabled';
+
+        if ($status === 'disabled') {
+            return null;
+        }
+
+        $scheduled = $status === 'scheduled';
+
+        $startsAt = $scheduled && isset($setting['scheduledStartDateTime'])
+            ? $this->parseGraphDate($setting['scheduledStartDateTime'])
+            : $window->start;
+
+        $endsAt = $scheduled && isset($setting['scheduledEndDateTime'])
+            ? $this->parseGraphDate($setting['scheduledEndDateTime'])
+            : $window->end;
+
+        if ($endsAt <= $window->start) {
+            return null;
+        }
+
+        return new ExternalLeave($startsAt, $endsAt, $this->replyMessage($setting));
+    }
+
+    /**
+     * Get the reply text as plain prose, since Graph returns it as HTML.
+     *
+     * @param  array<string, mixed>  $setting
+     */
+    protected function replyMessage(array $setting): ?string
+    {
+        $html = (string) ($setting['internalReplyMessage'] ?? $setting['externalReplyMessage'] ?? '');
+        $text = trim(html_entity_decode(strip_tags($html)));
+
+        return blank($text) ? null : $text;
     }
 
     /**

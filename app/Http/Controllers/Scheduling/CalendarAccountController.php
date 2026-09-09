@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Scheduling;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\SyncCalendarBusyBlocks;
+use App\Jobs\SyncLeavePeriods;
 use App\Models\Calendar;
 use App\Models\CalendarAccount;
 use Illuminate\Http\RedirectResponse;
@@ -39,13 +40,14 @@ class CalendarAccountController extends Controller
     }
 
     /**
-     * Pull busy times again for an account.
+     * Pull busy times and out of office replies again for an account.
      */
     public function sync(Request $request, CalendarAccount $calendarAccount): RedirectResponse
     {
         abort_unless($calendarAccount->user_id === $request->user()->id, 403);
 
         SyncCalendarBusyBlocks::dispatch($calendarAccount);
+        SyncLeavePeriods::dispatch($calendarAccount);
 
         Inertia::flash('toast', ['type' => 'info', 'message' => __('Syncing calendar in the background.')]);
 
