@@ -471,13 +471,14 @@ class EventTypeController extends Controller
     }
 
     /**
-     * Get the public page the event type is listed under.
+     * Get the public page the event type is listed under, if it has one of
+     * its own.
      *
-     * Each team has a page of its own listing just its event types, so a
-     * pooled event type pointed at one links there rather than at the
-     * organization's front door, which lists every shared kind.
+     * A person's section links to their booking page and a team's to the
+     * team's, but the catch-all "Shared" section stands for no page in
+     * particular, so it is given none.
      */
-    protected function ownerLandingUrl(EventType $eventType): string
+    protected function ownerLandingUrl(EventType $eventType): ?string
     {
         if (! $eventType->kind->hasHostPool()) {
             return route('book.page', [
@@ -492,7 +493,7 @@ class EventTypeController extends Controller
             ]);
         }
 
-        return route('book.page', ['page' => $eventType->team->slug]);
+        return null;
     }
 
     /**

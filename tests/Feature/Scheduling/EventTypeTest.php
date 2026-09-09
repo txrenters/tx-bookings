@@ -892,7 +892,7 @@ test('a pooled event type pointed at a team is listed under that team', function
             ])));
 });
 
-test('a pooled event type pointed at no team is listed under the organization', function () {
+test('a pooled event type pointed at no team is listed under Shared with no page of its own', function () {
     EventType::factory()->ownedBy($this->user)->create([
         'name' => 'Round robin call',
         'kind' => EventTypeKind::RoundRobin,
@@ -903,5 +903,5 @@ test('a pooled event type pointed at no team is listed under the organization', 
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('eventTypes.0.ownerName', 'Shared')
-            ->where('eventTypes.0.ownerLandingUrl', route('book.page', ['page' => $this->team->slug])));
+            ->where('eventTypes.0.ownerLandingUrl', null));
 });

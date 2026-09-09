@@ -85,7 +85,7 @@ type EventTypeRow = {
     isHidden: boolean;
     upcomingBookings: number;
     ownerName: string;
-    ownerLandingUrl: string;
+    ownerLandingUrl: string | null;
     groupName: string | null;
     hosts: Array<{ id: number; name: string; initial: string }>;
     publicUrl: string;
@@ -194,7 +194,7 @@ const filtered = computed(() =>
 const grouped = computed(() => {
     const sections = new Map<
         string,
-        { name: string; landingUrl: string; eventTypes: EventTypeRow[] }
+        { name: string; landingUrl: string | null; eventTypes: EventTypeRow[] }
     >();
 
     for (const eventType of filtered.value) {
@@ -502,7 +502,13 @@ setLayoutProps({
                                     </div>
                                 </div>
 
+                                <!--
+                                  Only a section that stands for a real public
+                                  page offers the link: a person's own page or a
+                                  team's. "Shared" stands for none.
+                                -->
                                 <Button
+                                    v-if="group.landingUrl"
                                     variant="link"
                                     size="sm"
                                     class="h-auto p-0"
