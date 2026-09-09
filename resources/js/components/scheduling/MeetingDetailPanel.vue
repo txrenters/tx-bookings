@@ -44,6 +44,12 @@ type Meeting = {
     hostNames: string[];
     guests: string[];
     answers: Array<{ label: string; answer: string | null }>;
+    timeline: Array<{
+        label: string;
+        detail: string | null;
+        at: string;
+        atLabel: string;
+    }>;
     canCancel: boolean;
     canApprove: boolean;
     rescheduleUrl: string;
@@ -284,6 +290,41 @@ const approveMeeting = () => {
                             </p>
                         </div>
                     </div>
+                </section>
+
+                <section v-if="meeting.timeline.length" class="border-t pt-5">
+                    <h3 class="mb-3 font-semibold">Timeline</h3>
+
+                    <ol class="space-y-4 text-sm">
+                        <li
+                            v-for="entry in meeting.timeline"
+                            :key="`${entry.label}-${entry.at}`"
+                            class="relative flex gap-3 pl-1"
+                            data-test="timeline-entry"
+                        >
+                            <span
+                                class="mt-1.5 size-2 shrink-0 rounded-full bg-primary"
+                                aria-hidden="true"
+                            />
+                            <span class="min-w-0">
+                                <span class="block font-medium">
+                                    {{ entry.label }}
+                                </span>
+                                <span
+                                    v-if="entry.detail"
+                                    class="block text-muted-foreground"
+                                >
+                                    {{ entry.detail }}
+                                </span>
+                                <span
+                                    class="block text-xs text-muted-foreground"
+                                    data-numeric
+                                >
+                                    {{ entry.atLabel }}
+                                </span>
+                            </span>
+                        </li>
+                    </ol>
                 </section>
 
                 <section class="border-t pt-5">

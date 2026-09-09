@@ -603,3 +603,67 @@ test('a finished meeting is listed under past', function () {
             ->has('meetings', 1)
             ->where('meetings.0.inviteeName', 'Already over'));
 });
+
+test('a meeting carries its history, oldest first', function () {
+    $booking = bookingFor($this->host, $this->eventType, [
+        'name' => 'Sam Rivera',
+        'starts_at' => CarbonImmutable::parse('2026-09-01 07:00:00', 'UTC'),
+        'ends_at' => CarbonImmutable::parse('2026-09-01 07:30:00', 'UTC'),
+    ]);
+
+    // created_at is not fillable, so it is set after the fact.
+    ActivityLog::create([
+        'team_id' => $this->team->id,
+        'user_id' => null,
+        'actor_name' => 'Sam Rivera',
+        'event' => 'booking.created',
+        'description' => 'Booked Intro call',
+        'subject_type' => Booking::class,
+        'subject_id' => $booking->id,
+    ])->forceFill(['created_at' => CarbonImmutable::parse('2026-08-31 16:04:00', 'UTC')])->save();
+
+    $booking->reminders()->create([
+        'minutes_before' => 60,
+        'send_at' => CarbonImmutable::parse('2026-09-01 06:00:00', 'UTC'),
+        'sent_at' => CarbonImmutable::parse('2026-09-01 06:00:00', 'UTC'),
+    ]);
+
+    $this->actingAs($this->host)
+        ->get(route('meetings.index', ['current_team' => $this->team->slug, 'filter' => 'past']))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            // Booked, reminded, started, ended.
+            ->has('meetings.0.timeline', 4)
+            ->where('meetings.0.timeline.0.label', 'Booked Intro call')
+            ->where('meetings.0.timeline.0.detail', 'Sam Rivera')
+            ->where('meetings.0.timeline.1.label', 'Reminder sent')
+            ->where('meetings.0.timeline.2.label', 'Meeting started')
+            ->where('meetings.0.timeline.3.label', 'Meeting ended'));
+});
+
+test('a cancelled meeting does not claim it went ahead', function () {
+    $booking = bookingFor($this->host, $this->eventType, [
+        'starts_at' => CarbonImmutable::parse('2026-09-01 07:00:00', 'UTC'),
+        'ends_at' => CarbonImmutable::parse('2026-09-01 07:30:00', 'UTC'),
+        'status' => BookingStatus::Canceled,
+        'canceled_at' => CarbonImmutable::parse('2026-09-01 06:30:00', 'UTC'),
+        'cancellation_reason' => 'Something came up',
+    ]);
+
+    $this->actingAs($this->host)
+        ->get(route('meetings.index', [
+            'current_team' => $this->team->slug,
+            'filter' => 'past',
+            'status' => 'canceled',
+        ]))
+        ->assertOk()
+        ->assertInertia(function ($page) {
+            $labels = collect($page->toArray()['props']['meetings'][0]['timeline'])
+                ->pluck('label');
+
+            expect($labels)->toContain('Meeting cancelled')
+                ->and($labels)->not->toContain('Meeting started');
+        });
+
+    expect($booking->fresh()->status)->toBe(BookingStatus::Canceled);
+});

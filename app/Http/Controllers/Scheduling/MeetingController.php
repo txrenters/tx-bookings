@@ -8,6 +8,7 @@ use App\Actions\Bookings\DeclineBooking;
 use App\Enums\BookingStatus;
 use App\Enums\TeamPermission;
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\Booking;
 use App\Models\EventType;
 use App\Models\Team;
@@ -18,6 +19,7 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -85,13 +87,28 @@ class MeetingController extends Controller
         $total = (clone $query)->count();
 
         $meetings = $query
-            ->with(['eventType:id,name,color', 'hosts:id,name', 'host:id,name', 'guests', 'answers'])
+            ->with(['eventType:id,name,color', 'hosts:id,name', 'host:id,name', 'guests', 'answers', 'reminders'])
             ->forPage($page, $this->perPage)
             ->get();
 
+        // One query for the page's history rather than one per meeting.
+        $history = ActivityLog::query()
+            ->where('subject_type', Booking::class)
+            ->whereIn('subject_id', $meetings->pluck('id'))
+            ->with('user:id,name')
+            ->orderBy('created_at')
+            ->get()
+            ->groupBy('subject_id');
+
         return Inertia::render('scheduling/meetings/Index', [
             'meetings' => Inertia::merge(
-                fn () => $meetings->map(fn (Booking $booking) => $this->toPayload($booking, $timezone))->all(),
+                fn () => $meetings
+                    ->map(fn (Booking $booking) => $this->toPayload(
+                        $booking,
+                        $timezone,
+                        $history->get($booking->id) ?? collect(),
+                    ))
+                    ->all(),
             ),
             'total' => $total,
             'page' => $page,
@@ -125,6 +142,82 @@ class MeetingController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Meeting canceled.')]);
 
         return back();
+    }
+
+    /**
+     * Build the meeting's history, newest last.
+     *
+     * Three sources, because no single one knows the whole story: what people
+     * did to the booking (the activity log), what the app sent about it
+     * (reminders), and what the clock did (started, ended).
+     *
+     * @param  Collection<int, ActivityLog>  $history
+     * @return array<int, array{label: string, detail: string|null, at: string, atLabel: string}>
+     */
+    protected function timeline(Booking $booking, string $timezone, Collection $history): array
+    {
+        /** @var Collection<int, array{label: string, detail: string|null, at: CarbonInterface}> $entries */
+        $entries = new Collection;
+
+        foreach ($history as $entry) {
+            $entries->push([
+                'label' => $entry->description,
+                'detail' => $entry->user->name ?? $entry->actor_name,
+                'at' => $entry->created_at,
+            ]);
+        }
+
+        // The booking's own creation, for meetings made before the activity
+        // log existed or by the public page.
+        if ($history->isEmpty() && $booking->created_at !== null) {
+            $entries->push([
+                'label' => 'Meeting booked',
+                'detail' => $booking->name,
+                'at' => $booking->created_at,
+            ]);
+        }
+
+        foreach ($booking->reminders->whereNotNull('sent_at') as $reminder) {
+            $entries->push([
+                'label' => 'Reminder sent',
+                'detail' => $reminder->minutes_before >= 60
+                    ? (int) round($reminder->minutes_before / 60).' hours before'
+                    : $reminder->minutes_before.' minutes before',
+                'at' => $reminder->sent_at,
+            ]);
+        }
+
+        $now = CarbonImmutable::now();
+
+        if ($booking->canceled_at !== null) {
+            // Cancelling is already in the activity log; the clock milestones
+            // below would otherwise claim a cancelled meeting went ahead.
+            $entries->push([
+                'label' => 'Meeting cancelled',
+                'detail' => $booking->cancellation_reason,
+                'at' => $booking->canceled_at,
+            ]);
+        } else {
+            if ($booking->starts_at->isPast()) {
+                $entries->push(['label' => 'Meeting started', 'detail' => null, 'at' => $booking->starts_at]);
+            }
+
+            if ($booking->ends_at->isPast()) {
+                $entries->push(['label' => 'Meeting ended', 'detail' => null, 'at' => $booking->ends_at]);
+            }
+        }
+
+        return $entries
+            ->unique(fn (array $entry) => $entry['label'].$entry['at']->toIso8601String())
+            ->sortBy(fn (array $entry) => $entry['at']->getTimestamp())
+            ->map(fn (array $entry) => [
+                'label' => $entry['label'],
+                'detail' => $entry['detail'],
+                'at' => $entry['at']->toIso8601String(),
+                'atLabel' => $entry['at']->setTimezone($timezone)->isoFormat('D MMMM [at] h:mma'),
+            ])
+            ->values()
+            ->all();
     }
 
     /**
@@ -213,9 +306,10 @@ class MeetingController extends Controller
     /**
      * Present a meeting for the listing.
      *
+     * @param  Collection<int, ActivityLog>|null  $history
      * @return array<string, mixed>
      */
-    protected function toPayload(Booking $booking, string $timezone): array
+    protected function toPayload(Booking $booking, string $timezone, ?Collection $history = null): array
     {
         $localStart = $booking->starts_at->setTimezone($timezone);
         $hosts = $booking->hosts->isNotEmpty() ? $booking->hosts : collect([$booking->host])->filter();
@@ -257,6 +351,7 @@ class MeetingController extends Controller
             'color' => $booking->eventType->color,
             'hostNames' => $hosts->map(fn (User $host) => $host->name)->values(),
             'guests' => $booking->guests->map(fn ($guest) => $guest->email)->values(),
+            'timeline' => $this->timeline($booking, $timezone, $history ?? new Collection),
             'answers' => $booking->answers->map(fn ($answer) => [
                 'label' => $answer->label,
                 'answer' => $answer->answer,

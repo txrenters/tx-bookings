@@ -70,6 +70,12 @@ type Meeting = {
     hostNames: string[];
     guests: string[];
     answers: Array<{ label: string; answer: string | null }>;
+    timeline: Array<{
+        label: string;
+        detail: string | null;
+        at: string;
+        atLabel: string;
+    }>;
     canCancel: boolean;
     canApprove: boolean;
 };
