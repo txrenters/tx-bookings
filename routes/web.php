@@ -36,6 +36,7 @@ Route::middleware(['auth'])->group(function () {
      * organization, and the manageUsers gate is what guards them.
      */
     Route::get('users', [UserDirectoryController::class, 'index'])->name('users.index');
+    Route::post('users', [UserDirectoryController::class, 'store'])->name('users.store');
     Route::post('users/{user}/password-reset', [UserDirectoryController::class, 'sendPasswordReset'])
         ->name('users.password-reset');
     Route::patch('users/{user}/role', [UserDirectoryController::class, 'updateRole'])->name('users.role');

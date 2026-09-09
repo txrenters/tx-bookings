@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, router } from '@inertiajs/vue3';
+import { Head, router, useForm } from '@inertiajs/vue3';
 import {
     CalendarCheck,
     CalendarOff,
@@ -7,6 +7,7 @@ import {
     ChevronDown,
     ExternalLink,
     KeyRound,
+    Plus,
     MoreHorizontal,
     Search,
     ShieldCheck,
@@ -15,9 +16,18 @@ import {
 } from '@lucide/vue';
 import { ref, watch } from 'vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
+import InputError from '@/components/InputError.vue';
 import PageHeader from '@/components/PageHeader.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -27,11 +37,14 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
     destroy as destroyUser,
     index as usersIndex,
     passwordReset,
     role as updateRole,
+    store as storeUser,
 } from '@/routes/users';
 
 type Organization = {
@@ -63,7 +76,36 @@ const props = defineProps<{
     total: number;
     roles: Array<{ value: string; label: string }>;
     canManage: boolean;
+    organizations: Array<{ id: number; name: string }>;
 }>();
+
+/** Creating an account: a super admin, or somebody placed in an organization. */
+const creating = ref(false);
+
+const createForm = useForm({
+    name: '',
+    email: '',
+    is_super_admin: false,
+    team_id: null as number | null,
+    role: 'member',
+});
+
+const openCreate = () => {
+    createForm.reset();
+    createForm.clearErrors();
+    createForm.team_id = props.organizations[0]?.id ?? null;
+    creating.value = true;
+};
+
+const submitCreate = () => {
+    createForm.post(storeUser().url, {
+        preserveScroll: true,
+        onSuccess: () => {
+            creating.value = false;
+            createForm.reset();
+        },
+    });
+};
 
 const searchTerm = ref(props.search);
 
@@ -153,9 +195,18 @@ defineOptions({
             "
         >
             <template #actions>
-                <p class="text-sm text-muted-foreground">
-                    {{ total }} {{ total === 1 ? 'account' : 'accounts' }}
-                </p>
+                <div class="flex items-center gap-3">
+                    <p class="text-sm text-muted-foreground">
+                        {{ total }} {{ total === 1 ? 'account' : 'accounts' }}
+                    </p>
+                    <Button
+                        v-if="canManage"
+                        data-test="new-user"
+                        @click="openCreate"
+                    >
+                        <Plus /> New user
+                    </Button>
+                </div>
             </template>
         </PageHeader>
 
@@ -415,6 +466,120 @@ defineOptions({
                 Next
             </Button>
         </div>
+
+        <Dialog v-model:open="creating">
+            <DialogContent>
+                <form
+                    class="flex flex-col gap-4"
+                    @submit.prevent="submitCreate"
+                >
+                    <DialogHeader>
+                        <DialogTitle>New user</DialogTitle>
+                        <DialogDescription>
+                            No password is set here. They get an email with a
+                            link to choose their own.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div class="grid gap-1.5">
+                        <Label for="new-user-name">Name</Label>
+                        <Input
+                            id="new-user-name"
+                            v-model="createForm.name"
+                            data-test="new-user-name"
+                        />
+                        <InputError :message="createForm.errors.name" />
+                    </div>
+
+                    <div class="grid gap-1.5">
+                        <Label for="new-user-email">Email</Label>
+                        <Input
+                            id="new-user-email"
+                            v-model="createForm.email"
+                            type="email"
+                            data-test="new-user-email"
+                        />
+                        <InputError :message="createForm.errors.email" />
+                    </div>
+
+                    <label
+                        class="flex items-center justify-between gap-3 rounded-lg border border-border p-3"
+                    >
+                        <span>
+                            <span class="block font-medium">Super admin</span>
+                            <span class="text-sm text-muted-foreground">
+                                Reaches every organization and belongs to none.
+                            </span>
+                        </span>
+                        <Switch
+                            :model-value="createForm.is_super_admin"
+                            data-test="new-user-super-admin"
+                            @update:model-value="
+                                (value) =>
+                                    (createForm.is_super_admin = Boolean(value))
+                            "
+                        />
+                    </label>
+
+                    <template v-if="!createForm.is_super_admin">
+                        <div class="grid gap-1.5">
+                            <Label for="new-user-team">Organization</Label>
+                            <select
+                                id="new-user-team"
+                                v-model="createForm.team_id"
+                                class="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+                                data-test="new-user-team"
+                            >
+                                <option
+                                    v-for="organization in organizations"
+                                    :key="organization.id"
+                                    :value="organization.id"
+                                >
+                                    {{ organization.name }}
+                                </option>
+                            </select>
+                            <InputError :message="createForm.errors.team_id" />
+                        </div>
+
+                        <div class="grid gap-1.5">
+                            <Label for="new-user-role">Role</Label>
+                            <select
+                                id="new-user-role"
+                                v-model="createForm.role"
+                                class="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+                                data-test="new-user-role"
+                            >
+                                <option
+                                    v-for="option in roles"
+                                    :key="option.value"
+                                    :value="option.value"
+                                >
+                                    {{ option.label }}
+                                </option>
+                            </select>
+                            <InputError :message="createForm.errors.role" />
+                        </div>
+                    </template>
+
+                    <DialogFooter>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            @click="creating = false"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="submit"
+                            :disabled="createForm.processing"
+                            data-test="submit-new-user"
+                        >
+                            Create user
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
 
         <ConfirmDialog
             :open="deleting !== null"

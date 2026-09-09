@@ -2,8 +2,12 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\Actions\Scheduling\ApplyDefaultHolidays;
+use App\Actions\Scheduling\CreateDefaultAvailability;
+use App\Actions\Teams\CreateTeamUser;
 use App\Enums\TeamRole;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Settings\CreateDirectoryUserRequest;
 use App\Models\CalendarAccount;
 use App\Models\Membership;
 use App\Models\Team;
@@ -11,14 +15,23 @@ use App\Models\User;
 use App\Policies\TeamPolicy;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class UserDirectoryController extends Controller
 {
+    public function __construct(
+        protected CreateDefaultAvailability $createDefaultAvailability,
+        protected ApplyDefaultHolidays $applyDefaultHolidays,
+    ) {
+        //
+    }
+
     /**
      * How many accounts are listed at a time.
      */
@@ -68,7 +81,60 @@ class UserDirectoryController extends Controller
             'total' => $users->total(),
             'roles' => TeamRole::assignable(),
             'canManage' => $canManage,
+            'organizations' => $canManage
+                ? Team::query()->orderBy('name')->get(['id', 'name'])
+                : [],
         ]);
+    }
+
+    /**
+     * Create an account.
+     *
+     * Either a super admin, who belongs to no organization, or someone placed
+     * in one with a role. No password is chosen here in either case: the
+     * account gets a throwaway secret and a link to set its own, the way
+     * CreateTeamUser and the user:super-admin command both work.
+     */
+    public function store(CreateDirectoryUserRequest $request, CreateTeamUser $createTeamUser): RedirectResponse
+    {
+        Gate::authorize('manageUsers');
+
+        if ($request->boolean('is_super_admin')) {
+            $user = DB::transaction(function () use ($request) {
+                $user = User::create([
+                    'name' => $request->validated('name'),
+                    'email' => $request->validated('email'),
+                    'password' => Str::password(32),
+                ]);
+
+                $user->forceFill([
+                    'is_super_admin' => true,
+                    // Being created here by an operator is the verification.
+                    'email_verified_at' => now(),
+                ])->save();
+
+                $this->createDefaultAvailability->handle($user);
+                $this->applyDefaultHolidays->handle($user);
+
+                return $user;
+            });
+
+            Password::sendResetLink(['email' => $user->email]);
+        } else {
+            $user = $createTeamUser->handle(
+                Team::query()->whereKey($request->validated('team_id'))->firstOrFail(),
+                $request->validated('name'),
+                $request->validated('email'),
+                TeamRole::from($request->validated('role')),
+            );
+        }
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => __('Account created. :name can set a password from the email we just sent.', ['name' => $user->name]),
+        ]);
+
+        return back();
     }
 
     /**
