@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\Settings\LogViewerController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SecurityController;
 use App\Http\Controllers\Teams\TeamController;
@@ -29,10 +28,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('user-password.update');
 
     Route::inertia('settings/appearance', 'settings/Appearance')->name('appearance.edit');
-
-    // Not organization scoped, and the controller 404s in production.
-    Route::get('settings/logs', [LogViewerController::class, 'index'])->name('logs.index');
-    Route::delete('settings/logs', [LogViewerController::class, 'destroy'])->name('logs.destroy');
 
     Route::get('settings/teams', [TeamController::class, 'index'])->name('teams.index');
     Route::post('settings/teams', [TeamController::class, 'store'])->name('teams.store');

@@ -30,7 +30,7 @@ import { dashboard } from '@/routes';
 import { index as activityIndex } from '@/routes/activity';
 import { index as availabilityIndex } from '@/routes/availability';
 import { index as groupsIndex } from '@/routes/groups';
-import { index as logsIndex } from '@/routes/logs';
+import { index as logsIndex } from '@/routes/log-viewer';
 import { index as meetingsIndex } from '@/routes/meetings';
 import { edit as profileSettings } from '@/routes/profile';
 import { index as schedulingIndex } from '@/routes/scheduling';
@@ -96,7 +96,17 @@ const otherNavItems = computed<NavItem[]>(() => [
  */
 const adminNavItems = computed<NavItem[]>(() =>
     page.props.isSuperAdmin
-        ? [{ title: 'Logs', href: logsIndex(), icon: ScrollText }]
+        ? [
+              {
+                  title: 'Logs',
+                  href: logsIndex(),
+                  icon: ScrollText,
+                  // opcodesio/log-viewer serves its own Blade page, so this
+                  // leaves Inertia rather than visiting through it, and opens
+                  // in a tab of its own so the app stays where it was.
+                  external: true,
+              },
+          ]
         : [],
 );
 

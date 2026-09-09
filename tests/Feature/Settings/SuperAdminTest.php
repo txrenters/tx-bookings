@@ -144,11 +144,11 @@ test('a super admin has team permissions without holding a role', function () {
 });
 
 test('the log viewer is reachable only by a super admin', function () {
-    $this->actingAs(superAdmin())->get(route('logs.index'))->assertOk();
+    $this->actingAs(superAdmin())->get(route('log-viewer.index'))->assertOk();
 
     $ordinary = User::factory()->create(['email_verified_at' => now()]);
 
-    $this->actingAs($ordinary)->get(route('logs.index'))->assertNotFound();
+    $this->actingAs($ordinary)->get(route('log-viewer.index'))->assertForbidden();
 });
 
 test('the super admin flag is shared with the front end', function () {

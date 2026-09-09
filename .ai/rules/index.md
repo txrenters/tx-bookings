@@ -12,9 +12,10 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Http/Controllers/Scheduling/GroupController.php | .ai/rules/controllers-scheduling.md |
 | resources/css/** | .ai/rules/css.md |
 | app/Actions/Fortify/** | .ai/rules/fortify.md |
+| app/Jobs/SyncLeavePeriods.php | .ai/rules/jobs.md |
 | resources/js/** | .ai/rules/js.md |
 | resources/js/lib/** | .ai/rules/lib.md |
-| app/Services/Logs/** | .ai/rules/logs.md |
+| config/log-viewer.php, app/Providers/AppServiceProvider.php | .ai/rules/logs.md |
 | app/Services/Mail/** | .ai/rules/mail.md |
 | app/Models/EventType.php, app/Models/Availability*.php | .ai/rules/models.md |
 | app/Policies/** | .ai/rules/policies.md |

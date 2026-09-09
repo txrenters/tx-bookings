@@ -8,6 +8,7 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { useCurrentUrl } from '@/composables/useCurrentUrl';
+import { toUrl } from '@/lib/utils';
 import type { NavItem } from '@/types';
 
 withDefaults(
@@ -35,7 +36,16 @@ const { isCurrentUrl, isCurrentOrParentUrl } = useCurrentUrl();
                     "
                     :tooltip="item.title"
                 >
-                    <Link :href="item.href">
+                    <a
+                        v-if="item.external"
+                        :href="toUrl(item.href)"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        <component :is="item.icon" />
+                        <span>{{ item.title }}</span>
+                    </a>
+                    <Link v-else :href="item.href">
                         <component :is="item.icon" />
                         <span>{{ item.title }}</span>
                     </Link>
