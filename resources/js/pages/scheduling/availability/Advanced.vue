@@ -3,6 +3,7 @@ import { Head, setLayoutProps, useForm } from '@inertiajs/vue3';
 import { Plus, Trash2 } from '@lucide/vue';
 import { computed } from 'vue';
 import InputError from '@/components/InputError.vue';
+import PageHeader from '@/components/PageHeader.vue';
 import AvailabilityTabs from '@/components/scheduling/AvailabilityTabs.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -89,8 +90,11 @@ setLayoutProps({
 <template>
     <Head title="Advanced settings" />
 
-    <div class="flex h-full flex-1 flex-col gap-5 rounded-xl p-4">
-        <h1 class="text-2xl font-semibold tracking-tight">Availability</h1>
+    <div class="flex h-full flex-1 flex-col gap-6 p-4 sm:p-6">
+        <PageHeader
+            title="Availability"
+            description="When you can be booked, and which calendars are consulted."
+        />
 
         <AvailabilityTabs />
 

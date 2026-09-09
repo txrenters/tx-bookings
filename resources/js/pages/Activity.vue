@@ -9,7 +9,7 @@ import {
     Users,
 } from '@lucide/vue';
 import { computed } from 'vue';
-import Heading from '@/components/Heading.vue';
+import PageHeader from '@/components/PageHeader.vue';
 import {
     Select,
     SelectContent,
@@ -105,36 +105,35 @@ const range = computed(() => {
 <template>
     <Head title="Activity" />
 
-    <div class="flex flex-1 flex-col gap-6 p-4 sm:p-6">
-        <div class="flex flex-wrap items-end justify-between gap-4">
-            <Heading
-                variant="small"
-                title="Activity"
-                description="Everything that has happened in this organization"
-            />
-
-            <Select
-                :model-value="kind"
-                @update:model-value="(value) => applyKind(value as string)"
-            >
-                <SelectTrigger
-                    class="w-48 cursor-pointer"
-                    data-test="activity-filter"
-                    aria-label="Filter activity"
+    <div class="flex h-full flex-1 flex-col gap-6 p-4 sm:p-6">
+        <PageHeader
+            title="Activity"
+            description="Everything that has happened in this organization."
+        >
+            <template #actions>
+                <Select
+                    :model-value="kind"
+                    @update:model-value="(value) => applyKind(value as string)"
                 >
-                    <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem
-                        v-for="option in kinds"
-                        :key="option.value"
-                        :value="option.value"
+                    <SelectTrigger
+                        class="w-48 cursor-pointer"
+                        data-test="activity-filter"
+                        aria-label="Filter activity"
                     >
-                        {{ option.label }}
-                    </SelectItem>
-                </SelectContent>
-            </Select>
-        </div>
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem
+                            v-for="option in kinds"
+                            :key="option.value"
+                            :value="option.value"
+                        >
+                            {{ option.label }}
+                        </SelectItem>
+                    </SelectContent>
+                </Select>
+            </template>
+        </PageHeader>
 
         <div
             v-if="entries.data.length"

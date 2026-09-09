@@ -8,6 +8,7 @@ import {
     SlidersHorizontal,
 } from '@lucide/vue';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import PageHeader from '@/components/PageHeader.vue';
 import MeetingDetailPanel from '@/components/scheduling/MeetingDetailPanel.vue';
 import ScopePicker from '@/components/scheduling/ScopePicker.vue';
 import { Badge } from '@/components/ui/badge';
@@ -263,8 +264,11 @@ setLayoutProps({
 <template>
     <Head title="Meetings" />
 
-    <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
-        <h1 class="text-2xl font-semibold tracking-tight">Meetings</h1>
+    <div class="flex h-full flex-1 flex-col gap-6 p-4 sm:p-6">
+        <PageHeader
+            title="Meetings"
+            description="Everything booked with you and your organization."
+        />
 
         <div class="flex flex-wrap items-center gap-2">
             <ScopePicker

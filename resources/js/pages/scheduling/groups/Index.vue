@@ -3,8 +3,8 @@ import { Head, router, setLayoutProps, useForm } from '@inertiajs/vue3';
 import { Link2, Pencil, Plus, Trash2, Users } from '@lucide/vue';
 import { ref } from 'vue';
 import { toast } from 'vue-sonner';
-import Heading from '@/components/Heading.vue';
 import InputError from '@/components/InputError.vue';
+import PageHeader from '@/components/PageHeader.vue';
 import HostPriorityList from '@/components/scheduling/HostPriorityList.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -119,18 +119,21 @@ setLayoutProps({
 <template>
     <Head title="Teams" />
 
-    <div class="flex h-full flex-1 flex-col gap-6 rounded-xl p-4">
-        <div class="flex items-center justify-between">
-            <Heading
-                variant="small"
-                title="Teams"
-                description="Groups of people inside this organization — Leasing, Maintenance — that event types can host from"
-            />
-
-            <Button v-if="canManage" data-test="new-group" @click="openCreate">
-                <Plus /> New team
-            </Button>
-        </div>
+    <div class="flex h-full flex-1 flex-col gap-6 p-4 sm:p-6">
+        <PageHeader
+            title="Teams"
+            description="Groups of people inside this organization — Leasing, Maintenance — that event types can host from."
+        >
+            <template #actions>
+                <Button
+                    v-if="canManage"
+                    data-test="new-group"
+                    @click="openCreate"
+                >
+                    <Plus /> New team
+                </Button>
+            </template>
+        </PageHeader>
 
         <div v-if="groups.length" class="grid gap-3 md:grid-cols-2">
             <div

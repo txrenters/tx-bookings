@@ -2,7 +2,7 @@
 import { Head, router } from '@inertiajs/vue3';
 import { KeyRound, Search, ShieldCheck, UserRound } from '@lucide/vue';
 import { ref, watch } from 'vue';
-import Heading from '@/components/Heading.vue';
+import PageHeader from '@/components/PageHeader.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -76,9 +76,8 @@ defineOptions({
 <template>
     <Head title="Users" />
 
-    <div class="flex h-full flex-1 flex-col gap-5 p-4">
-        <Heading
-            variant="small"
+    <div class="flex h-full flex-1 flex-col gap-6 p-4 sm:p-6">
+        <PageHeader
             title="Users"
             description="Every account in the installation, the organizations they belong to, and their access."
         />

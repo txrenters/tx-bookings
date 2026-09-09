@@ -2,7 +2,7 @@
 import { Head, setLayoutProps, useForm } from '@inertiajs/vue3';
 import { Copy, ExternalLink } from '@lucide/vue';
 import { toast } from 'vue-sonner';
-import Heading from '@/components/Heading.vue';
+import PageHeader from '@/components/PageHeader.vue';
 import EventTypeForm from '@/components/scheduling/EventTypeForm.vue';
 import { Button } from '@/components/ui/button';
 import { useCurrentTeam } from '@/composables/useCurrentTeam';
@@ -72,7 +72,7 @@ setLayoutProps({
     <Head :title="eventType.name" />
 
     <form
-        class="flex h-full flex-1 flex-col gap-6 rounded-xl p-4"
+        class="flex h-full flex-1 flex-col gap-6 p-4 sm:p-6"
         @submit.prevent="
             form.patch(
                 update({
@@ -82,29 +82,25 @@ setLayoutProps({
             )
         "
     >
-        <div class="flex flex-wrap items-start justify-between gap-4">
-            <Heading
-                variant="small"
-                :title="eventType.name"
-                :description="publicUrl"
-            />
-
-            <div class="flex gap-2">
-                <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    @click="copyLink"
-                >
-                    <Copy class="size-3.5" /> Copy link
-                </Button>
-                <Button type="button" variant="ghost" size="sm" as-child>
-                    <a :href="publicUrl" target="_blank">
-                        <ExternalLink class="size-3.5" /> Preview
-                    </a>
-                </Button>
-            </div>
-        </div>
+        <PageHeader :title="eventType.name" :description="publicUrl">
+            <template #actions>
+                <div class="flex gap-2">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        @click="copyLink"
+                    >
+                        <Copy class="size-3.5" /> Copy link
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" as-child>
+                        <a :href="publicUrl" target="_blank">
+                            <ExternalLink class="size-3.5" /> Preview
+                        </a>
+                    </Button>
+                </div>
+            </template>
+        </PageHeader>
 
         <EventTypeForm
             :form="form"

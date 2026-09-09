@@ -14,6 +14,7 @@ import {
     UserPlus,
 } from '@lucide/vue';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
+import PageHeader from '@/components/PageHeader.vue';
 import PendingInvitationsModal from '@/components/PendingInvitationsModal.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -217,24 +218,27 @@ const quickActions = computed(() =>
         :invitations="pendingInvitations"
     />
 
-    <div class="flex flex-1 flex-col gap-6 p-4 sm:p-6">
-        <header class="flex flex-wrap items-center justify-between gap-4">
-            <div>
-                <h1 class="text-3xl font-semibold tracking-tight">
-                    {{ greeting }}, {{ greetingName }}
-                    <span aria-hidden="true">👋</span>
-                </h1>
-                <p class="mt-1 text-sm text-muted-foreground">
-                    Here's what's happening with your schedule today.
-                </p>
-            </div>
-            <Button v-if="teamSlug" class="cursor-pointer font-medium" as-child>
-                <Link :href="schedulingIndex(teamSlug)">
-                    <Plus class="size-4" aria-hidden="true" />
-                    Create event type
-                </Link>
-            </Button>
-        </header>
+    <div class="flex h-full flex-1 flex-col gap-6 p-4 sm:p-6">
+        <PageHeader
+            description="Here's what's happening with your schedule today."
+        >
+            <template #title>
+                {{ greeting }}, {{ greetingName }}
+                <span aria-hidden="true">👋</span>
+            </template>
+            <template #actions>
+                <Button
+                    v-if="teamSlug"
+                    class="cursor-pointer font-medium"
+                    as-child
+                >
+                    <Link :href="schedulingIndex(teamSlug)">
+                        <Plus class="size-4" aria-hidden="true" />
+                        Create event type
+                    </Link>
+                </Button>
+            </template>
+        </PageHeader>
 
         <div class="grid gap-6 lg:grid-cols-3">
             <!-- Main column: what's next, then the rest of today. -->

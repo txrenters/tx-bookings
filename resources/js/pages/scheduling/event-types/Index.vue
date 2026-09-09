@@ -22,6 +22,7 @@ import {
 import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import MonthCalendar from '@/components/booking/MonthCalendar.vue';
+import PageHeader from '@/components/PageHeader.vue';
 import CreateEventTypePanel from '@/components/scheduling/CreateEventTypePanel.vue';
 import EventTypeDetailPanel from '@/components/scheduling/EventTypeDetailPanel.vue';
 import ScopePicker from '@/components/scheduling/ScopePicker.vue';
@@ -363,55 +364,54 @@ setLayoutProps({
     <Head title="Scheduling" />
 
     <div class="flex h-full flex-1 flex-col gap-6 p-4 sm:p-6">
-        <div class="flex flex-wrap items-start justify-between gap-4">
-            <div>
-                <h1 class="text-2xl font-semibold tracking-tight">
-                    Scheduling
-                </h1>
-                <p class="mt-1 text-sm text-muted-foreground">
-                    Create and manage the event types people can book with you.
-                </p>
-            </div>
-
-            <DropdownMenu v-if="canCreate">
-                <DropdownMenuTrigger as-child>
-                    <Button data-test="new-event-type" class="cursor-pointer">
-                        <Plus /> Create
-                        <ChevronDown class="size-4 opacity-70" />
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" class="w-72">
-                    <DropdownMenuLabel class="text-muted-foreground">
-                        Event type
-                    </DropdownMenuLabel>
-                    <!--
+        <PageHeader
+            title="Scheduling"
+            description="Create and manage the event types people can book with you."
+        >
+            <template #actions>
+                <DropdownMenu v-if="canCreate">
+                    <DropdownMenuTrigger as-child>
+                        <Button
+                            data-test="new-event-type"
+                            class="cursor-pointer"
+                        >
+                            <Plus /> Create
+                            <ChevronDown class="size-4 opacity-70" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" class="w-72">
+                        <DropdownMenuLabel class="text-muted-foreground">
+                            Event type
+                        </DropdownMenuLabel>
+                        <!--
                       Team-only kinds stay listed but disabled on a personal
                       organization: hiding them just raises the question of why
                       only two of the four are here.
                     -->
-                    <DropdownMenuItem
-                        v-for="kind in kinds"
-                        :key="kind.value"
-                        class="flex-col items-start gap-0.5 py-2.5"
-                        :disabled="kind.requiresTeam && isPersonalTeam"
-                        :data-test="`new-event-type-${kind.value}`"
-                        @select="creatingKind = kind.value"
-                    >
-                        <span class="font-medium text-primary">
-                            {{ kind.label }}
-                        </span>
-                        <span class="text-sm">{{ kind.flow }}</span>
-                        <span class="text-xs text-muted-foreground">
-                            {{
-                                kind.requiresTeam && isPersonalTeam
-                                    ? 'Needs a shared organization with more than one member.'
-                                    : kind.description
-                            }}
-                        </span>
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
-        </div>
+                        <DropdownMenuItem
+                            v-for="kind in kinds"
+                            :key="kind.value"
+                            class="flex-col items-start gap-0.5 py-2.5"
+                            :disabled="kind.requiresTeam && isPersonalTeam"
+                            :data-test="`new-event-type-${kind.value}`"
+                            @select="creatingKind = kind.value"
+                        >
+                            <span class="font-medium text-primary">
+                                {{ kind.label }}
+                            </span>
+                            <span class="text-sm">{{ kind.flow }}</span>
+                            <span class="text-xs text-muted-foreground">
+                                {{
+                                    kind.requiresTeam && isPersonalTeam
+                                        ? 'Needs a shared organization with more than one member.'
+                                        : kind.description
+                                }}
+                            </span>
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </template>
+        </PageHeader>
 
         <div class="flex flex-col gap-6 xl:flex-row xl:items-start">
             <div class="flex min-w-0 flex-1 flex-col gap-6">

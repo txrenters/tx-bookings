@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
-import Heading from '@/components/Heading.vue';
+import PageHeader from '@/components/PageHeader.vue';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useCurrentUrl } from '@/composables/useCurrentUrl';
@@ -33,18 +33,14 @@ const sidebarNavItems = computed<NavItem[]>(() => [
 
 const { isCurrentOrParentUrl } = useCurrentUrl();
 
-/**
- * Settings pages are forms, so the content column is deliberately narrow.
- * Data-heavy pages (the log viewer) opt out and use the full width.
- */
-withDefaults(defineProps<{ wide?: boolean }>(), { wide: false });
+// Settings pages are forms, so the content column is deliberately narrow.
 </script>
 
 <template>
-    <div class="px-4 py-6">
-        <Heading
+    <div class="flex h-full flex-1 flex-col gap-6 p-4 sm:p-6">
+        <PageHeader
             title="Settings"
-            description="Manage your profile and account settings"
+            description="Manage your profile and account settings."
         />
 
         <div class="flex flex-col lg:flex-row lg:space-x-12">
@@ -73,8 +69,8 @@ withDefaults(defineProps<{ wide?: boolean }>(), { wide: false });
 
             <Separator class="my-6 lg:hidden" />
 
-            <div class="flex-1" :class="{ 'md:max-w-2xl': !wide }">
-                <section class="space-y-12" :class="{ 'max-w-xl': !wide }">
+            <div class="flex-1 md:max-w-2xl">
+                <section class="max-w-xl space-y-12">
                     <slot />
                 </section>
             </div>
