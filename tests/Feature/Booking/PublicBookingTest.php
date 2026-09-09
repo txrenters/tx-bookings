@@ -1,7 +1,9 @@
 <?php
 
 use App\Enums\BookingStatus;
+use App\Enums\EventTypeKind;
 use App\Enums\QuestionType;
+use App\Enums\TeamRole;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Jobs\SyncBookingToCalendars;
 use App\Models\ActivityLog;
@@ -581,4 +583,30 @@ test('an answer outside the offered options is refused', function () {
     ])->assertSessionHasErrors("answers.{$question->id}");
 
     expect(Booking::query()->where('email', 'sam@example.com')->exists())->toBeFalse();
+});
+
+test('a one-on-one names the person you are booking with', function () {
+    $this->get(route('book.event-type', ['page' => 'dana', 'eventType' => 'intro']))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('eventType.hostNames', [$this->host->name]));
+});
+
+test('a pooled event type names nobody, since it is assigned when booked', function () {
+    $team = $this->host->currentTeam;
+    $second = User::factory()->create();
+    $team->members()->attach($second, ['role' => TeamRole::Member->value]);
+
+    $pooled = EventType::factory()->ownedBy($this->host)->create([
+        'name' => 'Team call',
+        'slug' => 'team-call',
+        'kind' => EventTypeKind::RoundRobin,
+    ]);
+
+    $pooled->hosts()->attach($this->host, ['priority' => 0]);
+    $pooled->hosts()->attach($second, ['priority' => 1]);
+
+    $this->get(route('book.event-type', ['page' => 'dana', 'eventType' => 'team-call']))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('eventType.hostNames', []));
 });

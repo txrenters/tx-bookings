@@ -197,7 +197,6 @@ class BookingPageController extends Controller
      */
     protected function toPayload(EventType $eventType): array
     {
-        $hosts = $eventType->kind->hasHostPool() ? $eventType->hosts : collect([$eventType->owner]);
 
         return [
             'slug' => $eventType->slug,
@@ -210,7 +209,15 @@ class BookingPageController extends Controller
             'locationDetail' => $eventType->location_type->requiresHostDetail() ? $eventType->location_detail : null,
             'needsInviteePhone' => $eventType->location_type->requiresInviteeInput(),
             'seatsPerSlot' => $eventType->seats(),
-            'hostNames' => $hosts->pluck('name')->values(),
+            /*
+              * Only a definite host is named. A pooled event type is assigned
+              * when it is booked, so listing everyone who might take it tells
+              * the invitee nothing and publishes the roster; the organization's
+              * own name is already at the top of the page.
+              */
+            'hostNames' => $eventType->kind->hasHostPool()
+                ? []
+                : [$eventType->owner->name],
             'questions' => $eventType->questions->map(fn ($question) => [
                 'id' => $question->id,
                 'type' => $question->type->value,

@@ -248,6 +248,7 @@ const submit = () => {
                     />
 
                     <p
+                        v-if="eventType.hostNames.length"
                         class="text-sm font-medium text-muted-foreground"
                         :class="page.logoUrl ? 'mt-5' : 'mt-6'"
                     >
