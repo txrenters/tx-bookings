@@ -164,7 +164,7 @@ test('an organization admin sees only their own people, without the actions', fu
             ->has('users', 2));
 });
 
-test('an organization admin cannot act on the people they can see', function () {
+test('an organization admin cannot change roles or delete accounts', function () {
     Notification::fake();
 
     $team = Team::factory()->create();
@@ -174,10 +174,8 @@ test('an organization admin cannot act on the people they can see', function () 
     $team->members()->attach($admin, ['role' => TeamRole::Admin->value]);
     $team->members()->attach($colleague, ['role' => TeamRole::Member->value]);
 
-    $this->actingAs($admin)
-        ->post(route('users.password-reset', ['user' => $colleague->id]))
-        ->assertForbidden();
-
+    // Sending a reset link and removing from the organization they run are
+    // theirs; changing roles and deleting accounts are not.
     $this->actingAs($admin)
         ->patch(route('users.role', ['user' => $colleague->id]), [
             'team_id' => $team->id,
@@ -338,4 +336,125 @@ test('an admin cannot create an account in an organization they do not administe
         ->assertForbidden();
 
     $this->assertDatabaseMissing('users', ['email' => 'elsewhere@texasrenters.com']);
+});
+
+test('an admin sends a reset link to somebody in their organization', function () {
+    Notification::fake();
+
+    $team = Team::factory()->create();
+    $admin = User::factory()->create();
+    $colleague = User::factory()->create();
+
+    $admin->teams()->detach();
+    $colleague->teams()->detach();
+    $team->members()->attach($admin, ['role' => TeamRole::Admin->value]);
+    $team->members()->attach($colleague, ['role' => TeamRole::Member->value]);
+
+    $this->actingAs($admin)
+        ->post(route('users.password-reset', ['user' => $colleague->id]))
+        ->assertRedirect();
+
+    Notification::assertSentTo($colleague, ResetPassword::class);
+});
+
+test('an admin cannot send a reset link to a stranger', function () {
+    Notification::fake();
+
+    $team = Team::factory()->create();
+    $admin = User::factory()->create();
+    $stranger = User::factory()->create();
+
+    $admin->teams()->detach();
+    $team->members()->attach($admin, ['role' => TeamRole::Admin->value]);
+
+    $this->actingAs($admin)
+        ->post(route('users.password-reset', ['user' => $stranger->id]))
+        ->assertForbidden();
+
+    Notification::assertNothingSent();
+});
+
+test('an admin removes somebody from their organization without deleting them', function () {
+    $team = Team::factory()->create();
+    $other = Team::factory()->create();
+    $admin = User::factory()->create();
+    $colleague = User::factory()->create();
+
+    $admin->teams()->detach();
+    $colleague->teams()->detach();
+    $team->members()->attach($admin, ['role' => TeamRole::Admin->value]);
+    $team->members()->attach($colleague, ['role' => TeamRole::Member->value]);
+    $other->members()->attach($colleague, ['role' => TeamRole::Member->value]);
+
+    $this->actingAs($admin)
+        ->delete(route('users.organizations.destroy', [
+            'user' => $colleague->id,
+            'team' => $team->slug,
+        ]))
+        ->assertRedirect();
+
+    expect($colleague->fresh()->belongsToTeam($team))->toBeFalse()
+        // The account and its other organization are untouched.
+        ->and($colleague->fresh()->belongsToTeam($other))->toBeTrue();
+});
+
+test('an admin cannot remove somebody from an organization they do not run', function () {
+    $team = Team::factory()->create();
+    $elsewhere = Team::factory()->create();
+    $admin = User::factory()->create();
+    $stranger = User::factory()->create();
+
+    $admin->teams()->detach();
+    $stranger->teams()->detach();
+    $team->members()->attach($admin, ['role' => TeamRole::Admin->value]);
+    $elsewhere->members()->attach($stranger, ['role' => TeamRole::Member->value]);
+
+    $this->actingAs($admin)
+        ->delete(route('users.organizations.destroy', [
+            'user' => $stranger->id,
+            'team' => $elsewhere->slug,
+        ]))
+        ->assertForbidden();
+
+    expect($stranger->fresh()->belongsToTeam($elsewhere))->toBeTrue();
+});
+
+test('an admin cannot remove themselves or the last administrator', function () {
+    $team = Team::factory()->create();
+    $admin = User::factory()->create();
+    $second = User::factory()->create();
+
+    $admin->teams()->detach();
+    $second->teams()->detach();
+    $team->members()->attach($admin, ['role' => TeamRole::Admin->value]);
+    $team->members()->attach($second, ['role' => TeamRole::Admin->value]);
+
+    $this->actingAs($admin)
+        ->delete(route('users.organizations.destroy', ['user' => $admin->id, 'team' => $team->slug]))
+        ->assertSessionHasErrors('member');
+
+    // With the second admin gone, the first is the last one standing.
+    $team->memberships()->where('user_id', $second->id)->delete();
+
+    $this->actingAs(superAdminUser())
+        ->delete(route('users.organizations.destroy', ['user' => $admin->id, 'team' => $team->slug]))
+        ->assertSessionHasErrors('member');
+
+    expect($admin->fresh()->belongsToTeam($team))->toBeTrue();
+});
+
+test('an admin still cannot delete an account outright', function () {
+    $team = Team::factory()->create();
+    $admin = User::factory()->create();
+    $colleague = User::factory()->create();
+
+    $admin->teams()->detach();
+    $team->members()->attach($admin, ['role' => TeamRole::Admin->value]);
+    $team->members()->attach($colleague, ['role' => TeamRole::Member->value]);
+
+    $this->actingAs($admin)
+        ->delete(route('users.destroy', ['user' => $colleague->id]))
+        ->assertForbidden();
+
+    $this->assertDatabaseHas('users', ['id' => $colleague->id]);
 });

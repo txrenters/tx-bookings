@@ -12,6 +12,7 @@ import {
     Search,
     ShieldCheck,
     Trash2,
+    UserMinus,
     UserRound,
 } from '@lucide/vue';
 import { ref, watch } from 'vue';
@@ -46,6 +47,7 @@ import {
     role as updateRole,
     store as storeUser,
 } from '@/routes/users';
+import { destroy as removeFromOrganization } from '@/routes/users/organizations';
 
 type Organization = {
     id: number;
@@ -53,6 +55,8 @@ type Organization = {
     role: string;
     roleLabel: string;
 };
+
+type RemovableFrom = { id: number; slug: string; name: string };
 
 type DirectoryUser = {
     id: number;
@@ -65,6 +69,8 @@ type DirectoryUser = {
     bookingUrl: string | null;
     groups: string[];
     calendar: { state: string; label: string; detail: string | null };
+    canResetPassword: boolean;
+    removableFrom: RemovableFrom[];
     organizations: Organization[];
 };
 
@@ -144,6 +150,22 @@ const changeRole = (
         updateRole(user.id).url,
         { team_id: organization.id, role },
         { preserveScroll: true, preserveState: true },
+    );
+};
+
+const removing = ref<{ user: DirectoryUser; team: RemovableFrom } | null>(null);
+
+const confirmRemoval = () => {
+    if (!removing.value) {
+        return;
+    }
+
+    router.delete(
+        removeFromOrganization([
+            removing.value.user.id,
+            removing.value.team.slug,
+        ]).url,
+        { preserveScroll: true, onFinish: () => (removing.value = null) },
     );
 };
 
@@ -400,7 +422,7 @@ defineOptions({
                             </span>
                         </td>
 
-                        <td v-if="canManage" class="p-4 text-right">
+                        <td class="p-4 text-right">
                             <DropdownMenu>
                                 <DropdownMenuTrigger as-child>
                                     <Button
@@ -414,21 +436,44 @@ defineOptions({
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                     <DropdownMenuItem
+                                        v-if="user.canResetPassword"
                                         :data-test="`reset-password-${user.id}`"
                                         @click="sendPasswordReset(user)"
                                     >
                                         <KeyRound class="size-3.5" />
                                         Send reset link
                                     </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                        class="text-destructive"
-                                        :data-test="`delete-user-${user.id}`"
-                                        @click="deleting = user"
-                                    >
-                                        <Trash2 class="size-3.5" />
-                                        Delete account
-                                    </DropdownMenuItem>
+
+                                    <template v-if="user.removableFrom.length">
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                            v-for="organization in user.removableFrom"
+                                            :key="organization.id"
+                                            class="text-destructive"
+                                            :data-test="`remove-${user.id}-${organization.id}`"
+                                            @click="
+                                                removing = {
+                                                    user,
+                                                    team: organization,
+                                                }
+                                            "
+                                        >
+                                            <UserMinus class="size-3.5" />
+                                            Remove from {{ organization.name }}
+                                        </DropdownMenuItem>
+                                    </template>
+
+                                    <template v-if="canManage">
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                            class="text-destructive"
+                                            :data-test="`delete-user-${user.id}`"
+                                            @click="deleting = user"
+                                        >
+                                            <Trash2 class="size-3.5" />
+                                            Delete account
+                                        </DropdownMenuItem>
+                                    </template>
                                 </DropdownMenuContent>
                             </DropdownMenu>
                         </td>
@@ -581,6 +626,15 @@ defineOptions({
                 </form>
             </DialogContent>
         </Dialog>
+
+        <ConfirmDialog
+            :open="removing !== null"
+            title="Remove from this organization?"
+            :description="`${removing?.user.name} will lose access to ${removing?.team.name}. Their account and any other organizations they belong to are untouched.`"
+            confirm-label="Remove"
+            @cancel="removing = null"
+            @confirm="confirmRemoval"
+        />
 
         <ConfirmDialog
             :open="deleting !== null"

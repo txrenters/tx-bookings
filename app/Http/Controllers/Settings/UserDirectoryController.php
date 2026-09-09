@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Policies\TeamPolicy;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Password;
@@ -74,7 +75,7 @@ class UserDirectoryController extends Controller
             ->withQueryString();
 
         return Inertia::render('users/Index', [
-            'users' => $users->through(fn (User $user) => $this->toPayload($user))->items(),
+            'users' => $users->through(fn (User $user) => $this->toPayload($user, $viewer))->items(),
             'search' => $search,
             'page' => $users->currentPage(),
             'lastPage' => $users->lastPage(),
@@ -159,7 +160,7 @@ class UserDirectoryController extends Controller
      */
     public function sendPasswordReset(Request $request, User $user): RedirectResponse
     {
-        Gate::authorize('manageUsers');
+        abort_unless($this->mayActOn($request->user(), $user), 403);
 
         Password::sendResetLink(['email' => $user->email]);
 
@@ -209,6 +210,47 @@ class UserDirectoryController extends Controller
     }
 
     /**
+     * Take someone out of one organization, leaving the account alone.
+     *
+     * This is the admin's version of removing a user: deleting the account
+     * would reach into organizations they have nothing to do with.
+     */
+    public function removeFromTeam(Request $request, User $user, Team $team): RedirectResponse
+    {
+        $viewer = $request->user();
+
+        abort_unless(
+            $viewer->can('manageUsers') || $viewer->teamRole($team) === TeamRole::Admin,
+            403,
+        );
+
+        if ($viewer->is($user)) {
+            return back()->withErrors(['member' => __('You cannot remove yourself from here.')]);
+        }
+
+        if (app(TeamPolicy::class)->isLastAdmin($user, $team)) {
+            return back()->withErrors(['member' => __('The last administrator cannot be removed.')]);
+        }
+
+        $team->memberships()->where('user_id', $user->id)->delete();
+
+        if ($user->isCurrentTeam($team)) {
+            $next = $user->fallbackTeam();
+
+            $next === null
+                ? $user->forceFill(['current_team_id' => null])->save()
+                : $user->switchTeam($next);
+        }
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => __(':name has been removed from :team.', ['name' => $user->name, 'team' => $team->name]),
+        ]);
+
+        return back();
+    }
+
+    /**
      * Delete an account outright.
      *
      * Everything hanging off it goes with the foreign keys: memberships, event
@@ -233,12 +275,44 @@ class UserDirectoryController extends Controller
     }
 
     /**
+     * Determine whether the viewer may act on this account at all: a super
+     * admin may, and an admin may for the people in organizations they run.
+     */
+    protected function mayActOn(User $viewer, User $subject): bool
+    {
+        if ($viewer->can('manageUsers')) {
+            return true;
+        }
+
+        $administered = $this->administeredTeamIds($viewer);
+
+        return $administered->isNotEmpty()
+            && $subject->teams()->whereIn('teams.id', $administered)->exists();
+    }
+
+    /**
+     * Get the ids of the organizations the viewer administers.
+     *
+     * @return Collection<int, int>
+     */
+    protected function administeredTeamIds(User $viewer): Collection
+    {
+        return $viewer->teams()
+            ->wherePivot('role', TeamRole::Admin->value)
+            ->pluck('teams.id');
+    }
+
+    /**
      * Describe one account for the directory.
      *
      * @return array<string, mixed>
      */
-    protected function toPayload(User $user): array
+    protected function toPayload(User $user, User $viewer): array
     {
+        $administered = $viewer->can('manageUsers')
+            ? null
+            : $this->administeredTeamIds($viewer);
+
         return [
             'id' => $user->id,
             'name' => $user->name,
@@ -252,6 +326,20 @@ class UserDirectoryController extends Controller
                 : route('book.page', ['page' => $user->booking_slug]),
             'groups' => $user->groups->pluck('name')->values(),
             'calendar' => $this->calendarStatus($user),
+            // What this viewer may do to this row, so the menu offers only
+            // the actions that would actually go through.
+            'canResetPassword' => $this->mayActOn($viewer, $user),
+            'removableFrom' => $viewer->is($user)
+                ? collect()
+                : $user->teams
+                    ->filter(fn (Team $team) => $administered === null || $administered->contains($team->id))
+                    // The slug, because that is how a Team binds on the route.
+                    ->map(fn (Team $team) => [
+                        'id' => $team->id,
+                        'slug' => $team->slug,
+                        'name' => $team->name,
+                    ])
+                    ->values(),
             'organizations' => $user->teams
                 ->map(fn (Team $team) => [
                     'id' => $team->id,

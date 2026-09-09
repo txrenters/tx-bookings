@@ -48,6 +48,8 @@ Route::middleware(['auth'])->group(function () {
         ->name('organizations.members.update');
     Route::delete('organizations/{team}/members/{user}', [OrganizationDirectoryController::class, 'destroyMember'])
         ->name('organizations.members.destroy');
+    Route::delete('users/{user}/organizations/{team}', [UserDirectoryController::class, 'removeFromTeam'])
+        ->name('users.organizations.destroy');
     Route::delete('users/{user}', [UserDirectoryController::class, 'destroy'])->name('users.destroy');
 
     Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
