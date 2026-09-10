@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Settings;
 
 use App\Concerns\ProfileValidationRules;
+use App\Rules\DialableNumber;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -19,6 +20,13 @@ class ProfileUpdateRequest extends FormRequest
     {
         return [
             ...$this->profileRules($this->user()->id),
+
+            /*
+             * Optional, and only used by workflows that text the hosts. It is
+             * deliberately not on registration: nobody should have to hand
+             * over a phone number to make an account.
+             */
+            'phone' => ['sometimes', 'nullable', 'string', 'max:20', new DialableNumber],
 
             /*
              * SVG is deliberately excluded, as it is for organization logos:

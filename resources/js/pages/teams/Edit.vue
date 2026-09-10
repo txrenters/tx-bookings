@@ -62,6 +62,15 @@ type Props = {
     /** Admins create accounts in their own organization; so do super admins. */
     canCreateMember: boolean;
     timezones: string[];
+    /**
+     * The Twilio numbers the installation owns, for an admin to choose this
+     * organization's from. Empty when Twilio is not set up, or for anyone who
+     * cannot change it.
+     */
+    sms: {
+        configured: boolean;
+        numbers: Array<{ number: string; label: string }>;
+    };
 };
 
 const props = defineProps<Props>();
@@ -132,6 +141,7 @@ const profileForm = useForm({
     welcome_message: props.team.welcomeMessage ?? '',
     website_url: props.team.websiteUrl ?? '',
     timezone: props.team.timezone ?? '',
+    sms_from_number: props.team.smsFromNumber ?? '',
 });
 
 const logoInput = ref<HTMLInputElement | null>(null);
@@ -331,6 +341,43 @@ const submitProfile = () => {
                         </SelectContent>
                     </Select>
                     <InputError :message="profileForm.errors.timezone" />
+                </div>
+
+                <div class="grid gap-2">
+                    <Label for="sms-from-number">Text messages from</Label>
+                    <Select
+                        v-if="sms.numbers.length"
+                        v-model="profileForm.sms_from_number"
+                    >
+                        <SelectTrigger
+                            id="sms-from-number"
+                            class="w-full cursor-pointer sm:max-w-sm"
+                            data-test="team-sms-number-select"
+                        >
+                            <SelectValue placeholder="Choose a number" />
+                        </SelectTrigger>
+                        <SelectContent class="max-h-72">
+                            <SelectItem
+                                v-for="number in sms.numbers"
+                                :key="number.number"
+                                :value="number.number"
+                            >
+                                {{ number.label }} — {{ number.number }}
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <p v-else class="text-sm text-muted-foreground">
+                        {{
+                            sms.configured
+                                ? 'No numbers were found on the Twilio account.'
+                                : 'Twilio is not set up on this installation, so there is nothing to choose from yet.'
+                        }}
+                    </p>
+                    <p class="text-sm text-muted-foreground">
+                        Workflows that send a text message send it from this
+                        number.
+                    </p>
+                    <InputError :message="profileForm.errors.sms_from_number" />
                 </div>
 
                 <div class="flex items-center gap-4">

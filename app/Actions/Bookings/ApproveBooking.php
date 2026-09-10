@@ -12,6 +12,7 @@ class ApproveBooking
 {
     public function __construct(
         protected ScheduleReminders $scheduleReminders,
+        protected ScheduleAutomations $scheduleAutomations,
         protected NotifyBookingParties $notify,
         protected ActivityLogger $activity,
     ) {
@@ -30,6 +31,7 @@ class ApproveBooking
         $booking->update(['status' => BookingStatus::Confirmed]);
 
         $this->scheduleReminders->handle($booking);
+        $this->scheduleAutomations->handle($booking);
 
         $booking->load(['eventType', 'host', 'hosts', 'guests', 'answers']);
 

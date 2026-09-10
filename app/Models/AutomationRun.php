@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -40,6 +41,16 @@ class AutomationRun extends Model
     public function booking(): BelongsTo
     {
         return $this->belongsTo(Booking::class);
+    }
+
+    /**
+     * Scope the query to runs that are ready to be delivered.
+     *
+     * @param  Builder<AutomationRun>  $query
+     */
+    public function scopeDue(Builder $query): void
+    {
+        $query->whereNull('sent_at')->where('send_at', '<=', now());
     }
 
     /**

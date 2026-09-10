@@ -3,6 +3,7 @@
 namespace App\Actions\Bookings;
 
 use App\Models\Automation;
+use App\Models\AutomationRun;
 use App\Models\Booking;
 
 class ScheduleAutomations
@@ -20,7 +21,7 @@ class ScheduleAutomations
 
         $automations = Automation::query()
             ->where('team_id', $booking->team_id)
-            ->where('is_active', true)
+            ->active()
             ->with('eventTypes:id')
             ->get()
             ->filter(fn (Automation $automation) => $automation->covers($booking->eventType));
@@ -28,8 +29,10 @@ class ScheduleAutomations
         // Pending work is rebuilt from scratch; sent work is left alone.
         $booking->automationRuns()->whereNull('sent_at')->delete();
 
+        $alreadySent = $this->sentAutomationIds($booking);
+
         foreach ($automations as $automation) {
-            if ($booking->automationRuns()->where('automation_id', $automation->id)->whereNotNull('sent_at')->exists()) {
+            if (in_array($automation->id, $alreadySent, true)) {
                 continue;
             }
 
@@ -44,5 +47,31 @@ class ScheduleAutomations
                 'send_at' => $sendAt,
             ]);
         }
+    }
+
+    /**
+     * Get the automations that have already gone out about this meeting.
+     *
+     * A reschedule replaces the booking row rather than moving it, so what was
+     * sent is recorded against the booking this one replaced. Walk that chain,
+     * or a meeting moved twice would announce itself twice.
+     *
+     * @return array<int, int>
+     */
+    protected function sentAutomationIds(Booking $booking): array
+    {
+        $bookingIds = [$booking->id];
+        $previousId = $booking->rescheduled_from_id;
+
+        while ($previousId !== null && ! in_array($previousId, $bookingIds, true)) {
+            $bookingIds[] = $previousId;
+            $previousId = Booking::query()->whereKey($previousId)->value('rescheduled_from_id');
+        }
+
+        return AutomationRun::query()
+            ->whereIn('booking_id', $bookingIds)
+            ->whereNotNull('sent_at')
+            ->pluck('automation_id')
+            ->all();
     }
 }

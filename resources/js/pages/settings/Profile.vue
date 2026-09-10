@@ -51,7 +51,7 @@ const onPhotoChange = (event: Event) => {
         <Heading
             variant="small"
             title="Profile"
-            description="Update your name and email address"
+            description="Update your name, email address and phone number"
         />
 
         <Form
@@ -130,6 +130,24 @@ const onPhotoChange = (event: Event) => {
                     placeholder="Email address"
                 />
                 <InputError class="mt-2" :message="errors.email" />
+            </div>
+
+            <div class="grid gap-2">
+                <Label for="phone">Phone number</Label>
+                <Input
+                    id="phone"
+                    type="tel"
+                    class="mt-1 block w-full"
+                    name="phone"
+                    :default-value="user.phone ?? ''"
+                    autocomplete="tel"
+                    placeholder="(512) 555-0100"
+                />
+                <p class="text-sm text-muted-foreground">
+                    Optional. Used only by workflows that send you a text
+                    message about a meeting.
+                </p>
+                <InputError class="mt-2" :message="errors.phone" />
             </div>
 
             <div v-if="page.props.mustVerifyEmail && !user.email_verified_at">

@@ -5,7 +5,7 @@ Before planning or editing, find the row whose globs match the file's path and r
 | Applies to | Rule file |
 | --- | --- |
 | app/Actions/Scheduling/** | .ai/rules/actions-scheduling.md |
-| app/Actions/Bookings/AssignHosts.php | .ai/rules/bookings.md |
+| app/Actions/Bookings/AssignHosts.php, app/Actions/Bookings/ScheduleAutomations.php | .ai/rules/bookings.md |
 | app/Services/Calendar/** | .ai/rules/calendar.md |
 | app/Services/Calendly/**, app/Services/Calendly/CalendlyClient.php | .ai/rules/calendly.md |
 | app/Concerns/HasTeams.php | .ai/rules/concerns.md |
@@ -20,4 +20,5 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Models/EventType.php, app/Models/Availability*.php | .ai/rules/models.md |
 | app/Policies/** | .ai/rules/policies.md |
 | app/Services/Scheduling/** | .ai/rules/scheduling.md |
+| app/Services/Sms/** | .ai/rules/sms.md |
 | app/Http/Controllers/Teams/** | .ai/rules/teams.md |

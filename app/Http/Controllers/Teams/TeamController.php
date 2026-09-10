@@ -11,6 +11,7 @@ use App\Models\Membership;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\Activity\ActivityLogger;
+use App\Services\Sms\TwilioClient;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -65,6 +66,7 @@ class TeamController extends Controller
                 'welcomeMessage' => $team->welcome_message,
                 'websiteUrl' => $team->website_url,
                 'timezone' => $team->timezone,
+                'smsFromNumber' => $team->sms_from_number,
             ],
             // Super admins operate across organizations rather than belonging
             // to one, so they stay off the roster people manage here. They keep
@@ -100,6 +102,15 @@ class TeamController extends Controller
             'canCreateMember' => $user->can('createMember', $team),
             'availableRoles' => TeamRole::assignable(),
             'timezones' => timezone_identifiers_list(),
+            /*
+             * The numbers the installation's Twilio account owns, for the admin
+             * to pick this organization's from. Only fetched for someone who
+             * can actually change it -- everyone else has no use for the list.
+             */
+            'sms' => [
+                'configured' => app(TwilioClient::class)->isConfigured(),
+                'numbers' => $user->can('update', $team) ? app(TwilioClient::class)->numbers() : [],
+            ],
         ]);
     }
 
@@ -115,7 +126,7 @@ class TeamController extends Controller
 
             $attributes = ['name' => $request->validated('name')];
 
-            foreach (['welcome_message', 'website_url', 'timezone'] as $field) {
+            foreach (['welcome_message', 'website_url', 'timezone', 'sms_from_number'] as $field) {
                 if ($request->has($field)) {
                     $attributes[$field] = $request->validated($field);
                 }

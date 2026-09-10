@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Teams;
 
 use App\Rules\TeamName;
+use App\Services\Sms\TwilioClient;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -24,6 +25,19 @@ class SaveTeamRequest extends FormRequest
             'welcome_message' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'website_url' => ['sometimes', 'nullable', 'url', 'max:255'],
             'timezone' => ['sometimes', 'nullable', 'timezone'],
+            /*
+             * Only a number the Twilio account actually owns: the list is what
+             * the picker offers, and a number typed anywhere else would fail at
+             * send time rather than here. When the account cannot be reached
+             * the only allowed answer is "none", so a hiccup cannot silently
+             * point an organization at a number nobody has checked.
+             */
+            'sms_from_number' => [
+                'sometimes',
+                'nullable',
+                'string',
+                Rule::in(array_column(app(TwilioClient::class)->numbers(), 'number')),
+            ],
             /**
              * SVG is deliberately excluded: logos are served from the app's own
              * origin, and an SVG can carry script.

@@ -33,6 +33,7 @@ class CancelBooking
         ]);
 
         $booking->reminders()->whereNull('sent_at')->delete();
+        $booking->automationRuns()->whereNull('sent_at')->delete();
 
         RemoveBookingFromCalendars::dispatch($booking);
 

@@ -15,6 +15,11 @@ Schedule::command('bookings:send-reminders')
     ->withoutOverlapping()
     ->description('Send due booking reminders');
 
+Schedule::command('automations:run')
+    ->everyFiveMinutes()
+    ->withoutOverlapping()
+    ->description('Send due workflow emails');
+
 Schedule::command('calendars:sync')
     ->hourly()
     ->withoutOverlapping()

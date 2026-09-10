@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\BookingStatus;
 use App\Enums\LocationType;
+use App\Enums\QuestionType;
 use Database\Factories\BookingFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -168,6 +169,28 @@ class Booking extends Model
             ->filter()
             ->unique()
             ->values();
+    }
+
+    /**
+     * Get the invitee's phone number, from wherever it was collected.
+     *
+     * A phone question is the usual place, but an event type where the host
+     * calls the invitee asks for the number as the location instead. Neither
+     * is compulsory, so this is often null.
+     */
+    public function inviteePhone(): ?string
+    {
+        $answer = $this->answers
+            ->first(fn (BookingAnswer $answer) => $answer->question?->type === QuestionType::Phone
+                && filled($answer->answer));
+
+        if ($answer !== null) {
+            return $answer->answer;
+        }
+
+        return $this->location_type === LocationType::Phone
+            ? $this->location_detail
+            : null;
     }
 
     /**

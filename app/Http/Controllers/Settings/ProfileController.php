@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\ProfileDeleteRequest;
 use App\Http\Requests\Settings\ProfileUpdateRequest;
 use App\Models\User;
+use App\Support\PhoneNumber;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -37,6 +38,11 @@ class ProfileController extends Controller
 
         $user->fill($request->safe()->except(['photo', 'remove_photo']));
         $user->forceFill($this->resolvePhoto($request, $user));
+
+        // Stored the way Twilio dials it, whatever punctuation was typed.
+        if ($request->has('phone')) {
+            $user->phone = PhoneNumber::toE164($user->phone);
+        }
 
         if ($user->isDirty('email')) {
             $user->email_verified_at = null;

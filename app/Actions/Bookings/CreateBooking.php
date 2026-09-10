@@ -19,6 +19,7 @@ class CreateBooking
         protected AvailabilityEngine $availability,
         protected AssignHosts $assignHosts,
         protected ScheduleReminders $scheduleReminders,
+        protected ScheduleAutomations $scheduleAutomations,
         protected NotifyBookingParties $notify,
         protected ActivityLogger $activity,
     ) {
@@ -71,6 +72,7 @@ class CreateBooking
              */
             if ($booking->status->isConfirmed()) {
                 $this->scheduleReminders->handle($booking);
+                $this->scheduleAutomations->handle($booking);
             }
 
             return $booking;

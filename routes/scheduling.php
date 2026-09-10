@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Scheduling\AutomationController;
 use App\Http\Controllers\Scheduling\AvailabilityScheduleController;
 use App\Http\Controllers\Scheduling\CalendarAccountController;
 use App\Http\Controllers\Scheduling\CalendarOAuthController;
@@ -30,6 +31,18 @@ Route::prefix('{current_team}')
         Route::scopeBindings()->group(function () {
             Route::patch('groups/{group}', [GroupController::class, 'update'])->name('groups.update');
             Route::delete('groups/{group}', [GroupController::class, 'destroy'])->name('groups.destroy');
+        });
+
+        // "Workflows" in the UI; the rule itself is an Automation.
+        Route::get('automations', [AutomationController::class, 'index'])->name('automations.index');
+        Route::get('automations/new', [AutomationController::class, 'create'])->name('automations.create');
+        Route::post('automations', [AutomationController::class, 'store'])->name('automations.store');
+
+        // Scoped so a workflow only resolves inside the organization that owns it.
+        Route::scopeBindings()->group(function () {
+            Route::get('automations/{automation}', [AutomationController::class, 'edit'])->name('automations.edit');
+            Route::patch('automations/{automation}', [AutomationController::class, 'update'])->name('automations.update');
+            Route::delete('automations/{automation}', [AutomationController::class, 'destroy'])->name('automations.destroy');
         });
 
         Route::get('availability', [AvailabilityScheduleController::class, 'index'])->name('availability.index');

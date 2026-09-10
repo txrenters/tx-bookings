@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Storage;
  * @property string $slug
  * @property string|null $logo_path
  * @property string $timezone
+ * @property string|null $sms_from_number
  * @property string|null $welcome_message
  * @property string|null $website_url
  * @property-read string|null $logo_url
@@ -32,9 +33,10 @@ use Illuminate\Support\Facades\Storage;
  * @property-read Collection<int, User> $members
  * @property-read Collection<int, EventType> $eventTypes
  * @property-read Collection<int, Group> $groups
+ * @property-read Collection<int, Automation> $automations
  * @property-read Collection<int, Booking> $bookings
  */
-#[Fillable(['name', 'slug', 'logo_path', 'timezone', 'welcome_message', 'website_url'])]
+#[Fillable(['name', 'slug', 'logo_path', 'timezone', 'sms_from_number', 'welcome_message', 'website_url'])]
 class Team extends Model
 {
     /** @use HasFactory<TeamFactory> */
@@ -135,6 +137,16 @@ class Team extends Model
     public function eventTypes(): HasMany
     {
         return $this->hasMany(EventType::class);
+    }
+
+    /**
+     * Get the workflows that fire on this team's bookings.
+     *
+     * @return HasMany<Automation, $this>
+     */
+    public function automations(): HasMany
+    {
+        return $this->hasMany(Automation::class);
     }
 
     /**

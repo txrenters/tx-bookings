@@ -45,6 +45,17 @@ return [
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
     ],
 
+    /*
+     * Twilio sends the workflow text messages. Each organization chooses which
+     * of the account's numbers its texts come from -- see Team::sms_from_number
+     * -- so only the account credentials live here.
+     */
+    'twilio' => [
+        'sid' => env('TWILIO_SID'),
+        'token' => env('TWILIO_AUTH_TOKEN'),
+        'base_url' => env('TWILIO_API_URL', 'https://api.twilio.com/2010-04-01'),
+    ],
+
     'microsoft' => [
         'client_id' => env('MICROSOFT_CLIENT_ID'),
         'client_secret' => env('MICROSOFT_CLIENT_SECRET'),

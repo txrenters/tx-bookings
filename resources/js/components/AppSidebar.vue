@@ -12,6 +12,7 @@ import {
     Settings,
     Users,
     UsersRound,
+    Workflow,
 } from '@lucide/vue';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
@@ -30,6 +31,7 @@ import {
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
 import { index as activityIndex } from '@/routes/activity';
+import { index as automationsIndex } from '@/routes/automations';
 import { index as availabilityIndex } from '@/routes/availability';
 import { index as groupsIndex } from '@/routes/groups';
 import { index as logsIndex } from '@/routes/log-viewer';
@@ -80,6 +82,11 @@ const teamNavItems = computed<NavItem[]>(() => [
 ]);
 
 const otherNavItems = computed<NavItem[]>(() => [
+    {
+        title: 'Workflows',
+        href: automationsIndex(teamSlug.value),
+        icon: Workflow,
+    },
     {
         title: 'Activity',
         href: activityIndex(teamSlug.value),

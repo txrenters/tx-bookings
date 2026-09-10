@@ -37,6 +37,7 @@ class DeclineBooking
         ]);
 
         $booking->reminders()->whereNull('sent_at')->delete();
+        $booking->automationRuns()->whereNull('sent_at')->delete();
 
         $booking->load(['eventType', 'host', 'hosts', 'guests']);
 

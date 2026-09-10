@@ -39,6 +39,13 @@
         <env name="MAIL_FROM_ADDRESS" value="tests@example.com"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
+        <!--
+            No Twilio credentials in tests: the suite must never reach the real
+            API, so text messaging starts switched off and the tests that need
+            it set the config themselves alongside an Http::fake().
+        -->
+        <env name="TWILIO_SID" value=""/>
+        <env name="TWILIO_AUTH_TOKEN" value=""/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>

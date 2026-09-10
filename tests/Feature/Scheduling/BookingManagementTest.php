@@ -141,6 +141,23 @@ test('canceling clears the pending reminders', function () {
     expect($booking->fresh()->reminders)->toHaveCount(0);
 });
 
+test('a reply to a booking email reaches the other party, not the shared mailbox', function () {
+    $booking = bookingFor($this->host, $this->eventType, [
+        'name' => 'Sam Rivera',
+        'email' => 'sam@example.com',
+    ]);
+
+    $notification = new BookingConfirmed($booking->fresh(['eventType', 'host', 'hosts', 'guests', 'answers']));
+
+    // The invitee replies to whoever is hosting them...
+    expect($notification->toMail(new AnonymousNotifiable)->replyTo)
+        ->toBe([[$this->host->email, 'Dana Reed']]);
+
+    // ...and the host replies to the invitee.
+    expect($notification->toMail($this->host)->replyTo)
+        ->toBe([['sam@example.com', 'Sam Rivera']]);
+});
+
 test('a stranger cannot cancel a booking', function () {
     $booking = bookingFor($this->host, $this->eventType);
     $stranger = User::factory()->create();

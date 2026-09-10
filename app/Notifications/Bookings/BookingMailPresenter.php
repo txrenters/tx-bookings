@@ -150,9 +150,31 @@ class BookingMailPresenter
     }
 
     /**
-     * Add the manage links appropriate to the recipient.
+     * Get the addresses a reply should go to.
      *
-     * Only the host gets one. An invitee is deliberately offered no way to
+     * Everything sends as the bookings mailbox, which is shared, has no
+     * password and nobody reads -- so a reply to the From address is lost.
+     * Point it at the other party instead: a host hears back from the invitee,
+     * and the invitee reaches whoever is hosting them.
+     *
+     * @return array<int, array{address: string, name: string}>
+     */
+    public function replyToAddresses(): array
+    {
+        if ($this->isHost()) {
+            return [['address' => $this->booking->email, 'name' => $this->booking->name]];
+        }
+
+        return $this->booking->attendingHosts()
+            ->map(fn (User $host) => ['address' => $host->email, 'name' => $host->name])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Add the reply address and the manage links appropriate to the recipient.
+     *
+     * Only the host gets a link. An invitee is deliberately offered no way to
      * reschedule or cancel themselves -- changes go through the organizer, so
      * the confirmation is a statement rather than a menu. The routes still
      * exist and still work: the host's own Meetings page uses them, and a link
@@ -160,6 +182,10 @@ class BookingMailPresenter
      */
     public function withFooter(MailMessage $message): MailMessage
     {
+        foreach ($this->replyToAddresses() as $replyTo) {
+            $message->replyTo($replyTo['address'], $replyTo['name']);
+        }
+
         if ($this->isHost()) {
             return $message->action('View booking', route('meetings.index', ['current_team' => $this->booking->team->slug]));
         }

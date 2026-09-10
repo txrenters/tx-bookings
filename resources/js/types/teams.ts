@@ -12,6 +12,8 @@ export type Team = {
     welcomeMessage?: string | null;
     websiteUrl?: string | null;
     timezone?: string;
+    /** The Twilio number this organization's text messages come from. */
+    smsFromNumber?: string | null;
 };
 
 export type TeamMember = {
