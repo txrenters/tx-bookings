@@ -72,20 +72,27 @@ wait_for_ready() {
 }
 
 log "Pulling latest changes"
-# Deploys whichever branch this checkout is on, rather than assuming main.
-BRANCH=$(git rev-parse --abbrev-ref HEAD)
-echo "branch: $BRANCH"
 
 # SKIP_PULL=1 deploys the checkout already in place, which is what a CI job
 # that has staged the target commit itself wants -- and what an rsync-based
 # deploy from a workstation needs, since the server holds no GitHub credential
 # and an unguarded pull would fail and, under `set -e`, abort the deploy.
 #
+# Nothing above this point may touch git, for the same reason. Asking it even
+# for the branch name aborted the deploy when run by hand as root: the files
+# are rsynced in as the runner's user, so git refuses the directory as
+# "dubious ownership" for anyone else -- a credential-free deploy failing on
+# git is exactly what SKIP_PULL exists to avoid.
+#
 # The re-exec below is skipped with it: its only purpose is to pick up a newer
 # copy of this script from the pull that did not happen.
 if [[ "${SKIP_PULL:-0}" == "1" ]]; then
     echo "SKIP_PULL=1: deploying the checkout already in place"
 else
+    # Deploys whichever branch this checkout is on, rather than assuming main.
+    BRANCH=$(git rev-parse --abbrev-ref HEAD)
+    echo "branch: $BRANCH"
+
     git pull --ff-only origin "$BRANCH"
 
     # This script deploys itself, so the running process may be an older version
